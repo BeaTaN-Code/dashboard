@@ -46,7 +46,7 @@ $tomorrow = date('Y-m-d', strtotime('+1 day'));
 
 $stmt = $pdo->prepare("
   SELECT CATGASXX, DESGASXX, MONTGASX, FINCFECX
-  FROM movimientos_financieros
+  FROM FINANCIX
   WHERE REGESTXX = 'ACTIVO'
     AND MONTGASX < 0
     AND FINCFECX = ?
