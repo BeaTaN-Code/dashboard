@@ -24,10 +24,32 @@ if (!$pdo) {
   exit;
 }
 
-$stmt = $pdo->prepare("INSERT INTO push_subscriptions (endpoint, p256dh, auth) VALUES (?,?,?)");
+$endpoint = $data['endpoint'];
+$p256dh   = $data['keys']['p256dh'];
+$auth     = $data['keys']['auth'];
 
-$stmt->execute([
-  $data['endpoint'],
-  $data['keys']['p256dh'],
-  $data['keys']['auth']
-]);
+/* 🔍 Buscar si ya existe */
+$check = $pdo->prepare("
+  SELECT id 
+  FROM push_subscriptions 
+  WHERE endpoint = ? 
+    AND p256dh = ? 
+    AND auth = ?
+  LIMIT 1
+");
+$check->execute([$endpoint, $p256dh, $auth]);
+
+if ($check->fetch()) {
+  echo "YA_EXISTE";
+  exit;
+}
+
+/* ✅ Insertar si no existe */
+$stmt = $pdo->prepare("
+  INSERT INTO push_subscriptions (endpoint, p256dh, auth)
+  VALUES (?, ?, ?)
+");
+
+$stmt->execute([$endpoint, $p256dh, $auth]);
+
+echo "INSERTADO";
