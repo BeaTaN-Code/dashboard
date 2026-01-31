@@ -40,49 +40,9 @@ if (!$pdo) {
 }
 
 /* =========================
-   BUSCAR GASTOS DE MAÑANA
-========================= */
-$tomorrow = date('Y-m-d', strtotime('+1 day'));
-
-$stmt = $pdo->prepare("
-  SELECT CATGASXX, DESGASXX, MONTGASX, FINCFECX
-  FROM FINANCIX
-  WHERE REGESTXX = 'ACTIVO'
-    AND MONTGASX < 0
-    AND FINCFECX = ?
-");
-$stmt->execute([$tomorrow]);
-$gastos = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-if (count($gastos) === 0) {
-  echo "✅ No hay gastos para mañana\n";
-  exit;
-}
-
-/* =========================
-   ARMAR MENSAJE
-========================= */
-$detalle = "";
-$total = 0;
-
-foreach ($gastos as $g) {
-  $monto = number_format(abs($g['MONTGASX']), 0, ',', '.');
-  $detalle .= "• {$g['CATGASXX']}: {$g['DESGASXX']} ($$monto)\n";
-  $total += abs($g['MONTGASX']);
-}
-
-$totalFmt = number_format($total, 0, ',', '.');
-
-$payload = json_encode([
-  "title" => "⚠️ Gastos mañana",
-  "body"  => "Tienes ".count($gastos)." gasto(s):\n".$detalle."\nTotal: $$totalFmt",
-  "url"   => "/dashboard"
-]);
-
-/* =========================
    TRAER SUSCRIPCIONES
 ========================= */
-$subs = $pdo->query("SELECT * FROM push_subscriptions")->fetchAll();
+$subs = $pdo->query("SELECT * FROM push_subscriptions")->fetchAll(PDO::FETCH_ASSOC);
 
 if (count($subs) === 0) {
   echo "❌ No hay usuarios suscritos\n";
@@ -102,10 +62,53 @@ $auth = [
 
 $webPush = new WebPush($auth);
 
+$tomorrow = date('Y-m-d', strtotime('+1 day'));
+
 /* =========================
-   ENVIAR PUSH
+   PROCESAR POR USUARIO
 ========================= */
+$stmt = $pdo->prepare("
+  SELECT CATGASXX, DESGASXX, MONTGASX
+  FROM FINANCIX
+  WHERE REGESTXX = 'ACTIVO'
+    AND MONTGASX < 0
+    AND FINCFECX = ?
+    AND USRIDXXX = ?
+");
+
 foreach ($subs as $s) {
+
+  // buscar gastos SOLO de ese usuario
+  $stmt->execute([$tomorrow, $s['USRIDXXX']]);
+  $gastos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  if (count($gastos) === 0) {
+    continue; // este usuario no tiene gastos mañana
+  }
+
+  /* =========================
+     ARMAR MENSAJE
+  ========================= */
+  $detalle = "";
+  $total = 0;
+
+  foreach ($gastos as $g) {
+    $monto = number_format(abs($g['MONTGASX']), 0, ',', '.');
+    $detalle .= "• {$g['CATGASXX']}: {$g['DESGASXX']} ($$monto)\n";
+    $total += abs($g['MONTGASX']);
+  }
+
+  $totalFmt = number_format($total, 0, ',', '.');
+
+  $payload = json_encode([
+    "title" => "⚠️ Gastos mañana",
+    "body"  => "Tienes ".count($gastos)." gasto(s):\n".$detalle."\nTotal: $$totalFmt",
+    "url"   => "/dashboard"
+  ]);
+
+  /* =========================
+     CREAR SUBSCRIPCIÓN
+  ========================= */
   $sub = Subscription::create([
     "endpoint" => $s['endpoint'],
     "keys" => [
@@ -117,6 +120,9 @@ foreach ($subs as $s) {
   $webPush->queueNotification($sub, $payload);
 }
 
+/* =========================
+   ENVIAR
+========================= */
 $reports = $webPush->flush();
 
 /* =========================
