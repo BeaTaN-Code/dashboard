@@ -2,41 +2,10 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-
-echo "🟢 Iniciando index.php<br>";
-
 // dashboard/index.php
 require_once __DIR__ . '/config/db.php';
-echo "🟢 db.php cargado<br>";
 
-if (!function_exists('checkSession')) {
-  die("❌ La función checkSession() NO existe<br>");
-}
-
-checkSession();
-echo "🟢 Sesión válida<br>";
-
-if (!function_exists('getCurrentUser')) {
-  die("❌ La función getCurrentUser() NO existe<br>");
-}
-
-$user = getCurrentUser();
-if (!$user) {
-  die("❌ getCurrentUser() devolvió NULL<br>");
-}
-echo "🟢 Usuario cargado: " . htmlspecialchars($user['USRIDXXX'] ?? 'SIN ID') . "<br>";
-
-if (!function_exists('getDbConnection')) {
-  die("❌ La función getDbConnection() NO existe<br>");
-}
-
-$pdo = getDbConnection();
-if (!$pdo) {
-  die("❌ No se pudo conectar a la base de datos (PDO es null)<br>");
-}
-
-echo "🟢 Conexión a BD OK<br>";
-
+/* CARGAR .ENV PRIMERO */
 $envPaths = [
   __DIR__ . '/../../.env',
   __DIR__ . '/../.env',
@@ -44,28 +13,26 @@ $envPaths = [
 ];
 
 $env = [];
-$envLoaded = false;
-
 foreach ($envPaths as $path) {
-  echo "🔍 Buscando .env en: $path<br>";
   if (file_exists($path)) {
-    echo "🟢 .env encontrado en: $path<br>";
     $env = parse_env($path);
-    $envLoaded = true;
     break;
   }
 }
 
-if (!$envLoaded) {
-  echo "⚠️ No se encontró ningún .env<br>";
-} else {
-  echo "🟢 .env cargado<br>";
-  echo "<pre>";
-  print_r(array_keys($env));
-  echo "</pre>";
+if (!$env) {
+  die("❌ No se pudo cargar el .env");
 }
 
-echo "✅ Debug inicial completado<br>";
+/* AHORA SÍ sesión */
+checkSession();
+$user = getCurrentUser();
+
+/* AHORA SÍ BD */
+$pdo = getDbConnection();
+if (!$pdo) {
+  die("❌ No se pudo conectar a la base de datos");
+}
 
 // Obtener estadísticas del formulario
 $formStats = ['total' => 0, 'pendiente' => 0, 'leido' => 0, 'respondido' => 0];
