@@ -7,13 +7,6 @@ header('Content-Type: application/json');
 session_start();
 require_once __DIR__ . '/../config/db.php';
 
-// Verificar autenticacion
-if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-  http_response_code(401);
-  echo json_encode(['success' => false, 'error' => 'No autorizado']);
-  exit;
-}
-
 $envPaths = [
   __DIR__ . '/../../.env',
   __DIR__ . '/../.env',
