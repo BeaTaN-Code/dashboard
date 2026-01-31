@@ -964,7 +964,7 @@ if ($user['is_admin']) {
         console.log("📌 p256dh:", btoa(String.fromCharCode(...new Uint8Array(sub.getKey("p256dh")))));
         console.log("📌 auth:", btoa(String.fromCharCode(...new Uint8Array(sub.getKey("auth")))));
 
-        const res = await fetch("api/save_subscription.php", {
+        const res = await fetch("api/save_suscription.php", {
           method: "POST",
           body: JSON.stringify(sub),
           headers: {
