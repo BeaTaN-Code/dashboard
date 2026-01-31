@@ -934,6 +934,14 @@ if ($user['is_admin']) {
 
     const publicVapidKey = "<?php echo $env['VAPID_PUBLIC_KEY']; ?>";
 
+    navigator.serviceWorker.register("sw.js");
+
+    console.log("SW soportado:", "serviceWorker" in navigator);
+
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      console.log("Registrations:", regs);
+    });
+
     async function subscribeUser() {
       try {
         console.log("🟡 Iniciando suscripción push...");
@@ -945,15 +953,6 @@ if ($user['is_admin']) {
 
         const convertedKey = urlBase64ToUint8Array(publicVapidKey);
         console.log("🟢 VAPID convertida:", convertedKey);
-
-        console.log("🔍 Notification.permission:", Notification.permission);
-
-        if (Notification.permission !== "granted") {
-          console.warn("⛔ Permiso NO concedido");
-          return;
-        }
-
-        console.log("🧪 Intentando suscribirse...");
 
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
