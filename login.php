@@ -102,13 +102,6 @@ if (isset($_GET['registered']) && $_GET['registered'] === '1') {
         </button>
       </form>
 
-      <div class="auth-footer">
-        <p>¿No tienes cuenta? <a href="register.php">Regístrate aquí</a></p>
-        <a href="../index.html" class="back-link">
-          <i class="bi bi-arrow-left"></i>
-          Volver al inicio
-        </a>
-      </div>
     </div>
   </div>
 
