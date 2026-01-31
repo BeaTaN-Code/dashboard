@@ -14,6 +14,20 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
   exit;
 }
 
+$envPaths = [
+  __DIR__ . '/../../.env',
+  __DIR__ . '/../.env',
+  $_SERVER['DOCUMENT_ROOT'] . '/.env'
+];
+
+$env = [];
+foreach ($envPaths as $path) {
+  if (file_exists($path)) {
+    $env = parse_env($path);
+    break;
+  }
+}
+
 $pdo = getDbConnection();
 if (!$pdo) {
   http_response_code(500);
@@ -26,8 +40,8 @@ $subs = $pdo->query("SELECT * FROM push_subscriptions")->fetchAll();
 $auth = [
   'VAPID' => [
     'subject' => 'mailto:beatancode@gmail.com',
-    'publicKey' => $_ENV['VAPID_PUBLIC_KEY'],
-    'privateKey' => $_ENV['VAPID_PRIVATE_KEY'],
+    'publicKey' => $env['VAPID_PUBLIC_KEY'],
+    'privateKey' => $env['VAPID_PRIVATE_KEY'],
   ],
 ];
 
