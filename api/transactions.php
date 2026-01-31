@@ -52,8 +52,14 @@ function getTransactions($pdo, $userId)
 
   try {
     // Query base - solo transacciones activas
-    $sql = "SELECT * FROM FINANCIX WHERE USRIDXXX = :userId AND REGESTXX = 'ACTIVO'";
-    $params = [':userId' => $userId];
+    $sql = "SELECT * FROM FINANCIX WHERE REGESTXX = 'ACTIVO'";
+    $params = [];
+
+    // Solo filtrar por usuario si NO es BEATAN
+    if ($tipgasxx !== 'BEATAN') {
+      $sql .= " AND USRIDXXX = :userId";
+      $params[':userId'] = $userId;
+    }
 
     // Filtrar por tipo de cuenta (BEATAN o PERSONAL)
     if (!empty($tipgasxx)) {
@@ -62,32 +68,6 @@ function getTransactions($pdo, $userId)
     }
 
     // Filtrar por tipo de movimiento (INGRESO o GASTO)
-    if (!empty($tipo)) {
-      $sql .= " AND CATGASXX IN (SELECT CATGASXX FROM FINANCIX WHERE ";
-      if ($tipo === 'INGRESO') {
-        $sql = "SELECT * FROM FINANCIX WHERE USRIDXXX = :userId AND REGESTXX = 'ACTIVO'";
-        if (!empty($tipgasxx)) {
-          $sql .= " AND TIPGASXX = :tipgasxx";
-        }
-        $sql .= " AND MONTGASX > 0";
-      } else {
-        $sql = "SELECT * FROM FINANCIX WHERE USRIDXXX = :userId AND REGESTXX = 'ACTIVO'";
-        if (!empty($tipgasxx)) {
-          $sql .= " AND TIPGASXX = :tipgasxx";
-        }
-        $sql .= " AND MONTGASX < 0";
-      }
-    }
-
-    // Re-construir query con filtros correctos
-    $sql = "SELECT * FROM FINANCIX WHERE USRIDXXX = :userId AND REGESTXX = 'ACTIVO'";
-    $params = [':userId' => $userId];
-
-    if (!empty($tipgasxx)) {
-      $sql .= " AND TIPGASXX = :tipgasxx";
-      $params[':tipgasxx'] = $tipgasxx;
-    }
-
     if (!empty($tipo)) {
       if ($tipo === 'INGRESO') {
         $sql .= " AND MONTGASX > 0";
@@ -113,13 +93,18 @@ function getTransactions($pdo, $userId)
             COALESCE(SUM(CASE WHEN MONTGASX > 0 AND FINCFECX <= :today THEN MONTGASX ELSE 0 END), 0) as income,
             COALESCE(SUM(CASE WHEN MONTGASX < 0 AND FINCFECX <= :today2 THEN ABS(MONTGASX) ELSE 0 END), 0) as expense
             FROM FINANCIX 
-            WHERE USRIDXXX = :userId AND REGESTXX = 'ACTIVO'";
+            WHERE REGESTXX = 'ACTIVO'";
 
     $balanceParams = [
-      ':userId' => $userId,
       ':today' => $today,
       ':today2' => $today
     ];
+
+    // Solo filtrar por usuario si NO es BEATAN
+    if ($tipgasxx !== 'BEATAN') {
+      $balanceSql .= " AND USRIDXXX = :userId";
+      $balanceParams[':userId'] = $userId;
+    }
 
     if (!empty($tipgasxx)) {
       $balanceSql .= " AND TIPGASXX = :tipgasxx";
