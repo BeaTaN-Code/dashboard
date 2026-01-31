@@ -52,13 +52,12 @@ function getTransactions($pdo, $userId)
 
   try {
     // Query base - solo transacciones activas
-    $sql = "SELECT * FROM FINANCIX WHERE USRIDXXX = :userId AND REGESTXX = 'ACTIVO'";
-    $params = [':userId' => $userId];
+    $sql = "SELECT * FROM FINANCIX WHERE TIPGASXX = :tipgasxx AND REGESTXX = 'ACTIVO'";
+    $params[':tipgasxx'] = $tipgasxx;
 
-    // Filtrar por tipo de cuenta (BEATAN o PERSONAL)
-    if (!empty($tipgasxx)) {
-      $sql .= " AND TIPGASXX = :tipgasxx";
-      $params[':tipgasxx'] = $tipgasxx;
+    if($tipgasxx != "BEATAN") {
+      $sql .= " AND USRIDXXX = :userId";
+      $params = [':userId' => $userId];
     }
 
     // Filtrar por tipo de movimiento (INGRESO o GASTO)
