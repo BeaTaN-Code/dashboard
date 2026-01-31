@@ -82,7 +82,16 @@ try {
       <div class="sidebar-footer">
         <div class="user-info">
           <div class="user-avatar">
-            <?php echo strtoupper(substr($user['name'] ?? 'U', 0, 1)); ?>
+            <?php
+            $userId = $user['id'];
+            $imgPath = "img/Equipo/{$userId}.png";
+
+            if (file_exists($imgPath)) {
+              echo "<img src='$imgPath' alt='Avatar' class='avatar-img'>";
+            } else {
+              echo strtoupper(substr($user['name'] ?? 'U', 0, 1));
+            }
+            ?>
           </div>
           <div class="user-details">
             <div class="user-name"><?php echo htmlspecialchars($user['name'] ?? 'Usuario'); ?></div>
