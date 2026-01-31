@@ -27,7 +27,7 @@ function getDbConnection()
   $envPaths = [
     __DIR__ . '/../../.env',
     __DIR__ . '/../.env',
-    $_SERVER['DOCUMENT_ROOT'] . '/.env'
+    '/.env'
   ];
 
   $env = [];
