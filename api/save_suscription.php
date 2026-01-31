@@ -18,13 +18,13 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
   exit;
 }
 
-if (!isset($_SESSION['USRIDXXX'])) {
+if (!isset($_SESSION['user_id'])) {
   http_response_code(400);
   echo json_encode(['success' => false, 'error' => 'Usuario no identificado']);
   exit;
 }
 
-$usrid = $_SESSION['USRIDXXX'];
+$usrid = $_SESSION['user_id'];
 
 $pdo = getDbConnection();
 if (!$pdo) {
