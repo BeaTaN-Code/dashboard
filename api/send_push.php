@@ -60,4 +60,13 @@ foreach ($subs as $s) {
   $webPush->queueNotification($sub, $payload);
 }
 
-$webPush->flush();
+$reports = $webPush->flush();
+
+foreach ($reports as $report) {
+  echo "Endpoint: {$report->getRequest()->getUri()}\n";
+  if ($report->isSuccess()) {
+    echo "✅ Enviado correctamente\n";
+  } else {
+    echo "❌ Error: {$report->getReason()}\n";
+  }
+}
