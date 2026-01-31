@@ -424,6 +424,7 @@ a:hover {
   transition: all var(--transition-fast);
   cursor: pointer;
   border-left: 3px solid transparent;
+  position: relative;
 }
 
 .nav-item:hover {
@@ -441,6 +442,23 @@ a:hover {
   font-size: 1.2rem;
   width: 24px;
   text-align: center;
+}
+
+.nav-badge {
+  position: absolute;
+  right: 15px;
+  background: var(--error-color);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.nav-badge.warning {
+  background: var(--warning-color);
 }
 
 .sidebar-footer {
@@ -468,6 +486,7 @@ a:hover {
   justify-content: center;
   font-weight: 700;
   font-size: 1rem;
+  overflow: hidden;
 }
 
 .avatar-img {
@@ -552,6 +571,12 @@ a:hover {
   color: var(--primary-cyan);
 }
 
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
 .mobile-toggle {
   display: none;
   background: none;
@@ -595,6 +620,8 @@ a:hover {
   margin-bottom: 20px;
   padding-bottom: 15px;
   border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
+  gap: 15px;
 }
 
 .card-title {
@@ -844,6 +871,349 @@ a:hover {
 }
 
 /* ===============================================
+   UPCOMING EXPENSES ALERT
+   =============================================== */
+.upcoming-expenses-alert {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.upcoming-expenses-alert .alert-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+  color: var(--warning-color);
+}
+
+.upcoming-expenses-alert .alert-header i {
+  font-size: 1.3rem;
+}
+
+.upcoming-expenses-alert .alert-header h4 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.upcoming-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.upcoming-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  background: var(--bg-dark);
+  border-radius: 8px;
+}
+
+.upcoming-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.upcoming-category {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.upcoming-desc {
+  font-size: 0.8rem;
+  color: var(--muted-white);
+}
+
+.upcoming-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.upcoming-amount {
+  font-weight: 600;
+  color: var(--expense-color);
+}
+
+.upcoming-date {
+  font-size: 0.8rem;
+  color: var(--muted-white);
+}
+
+/* ===============================================
+   NOTIFICATIONS
+   =============================================== */
+.notification-bell {
+  position: relative;
+  background: none;
+  border: none;
+  color: var(--muted-white);
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all var(--transition-fast);
+}
+
+.notification-bell:hover {
+  background: rgba(50, 178, 207, 0.1);
+  color: var(--primary-cyan);
+}
+
+.notification-count {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: var(--error-color);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 16px;
+  text-align: center;
+}
+
+.notification-panel {
+  position: absolute;
+  top: 70px;
+  right: 30px;
+  width: 380px;
+  max-height: 500px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  display: none;
+  overflow: hidden;
+}
+
+.notification-panel.active {
+  display: block;
+}
+
+.notification-panel-header {
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notification-panel-header h4 {
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+}
+
+.notification-panel-header h4 i {
+  color: var(--primary-cyan);
+}
+
+.notification-panel-body {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.notification-item {
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.notification-item:hover {
+  background: rgba(50, 178, 207, 0.05);
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-item-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 5px;
+}
+
+.notification-item-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.notification-item-icon.urgent,
+.notification-item-icon.danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--error-color);
+}
+
+.notification-item-icon.warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning-color);
+}
+
+.notification-item-icon.info {
+  background: rgba(50, 178, 207, 0.15);
+  color: var(--primary-cyan);
+}
+
+.notification-item-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.notification-item-date {
+  font-size: 0.75rem;
+  color: var(--muted-white);
+}
+
+.notification-item-message {
+  font-size: 0.85rem;
+  color: #fff;
+  margin-bottom: 3px;
+}
+
+.notification-item-detail {
+  font-size: 0.8rem;
+  color: var(--muted-white);
+}
+
+.empty-notifications {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted-white);
+}
+
+.empty-notifications i {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  display: block;
+}
+
+/* Toast Notifications */
+.notification-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toast-notification {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 15px 20px;
+  min-width: 300px;
+  max-width: 400px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  animation: slideIn 0.3s ease;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.toast-notification.success {
+  border-left: 4px solid var(--success-color);
+}
+
+.toast-notification.error {
+  border-left: 4px solid var(--error-color);
+}
+
+.toast-notification.warning {
+  border-left: 4px solid var(--warning-color);
+}
+
+.toast-notification.info {
+  border-left: 4px solid var(--primary-cyan);
+}
+
+.toast-notification i {
+  font-size: 1.2rem;
+}
+
+.toast-notification.success i {
+  color: var(--success-color);
+}
+
+.toast-notification.error i {
+  color: var(--error-color);
+}
+
+.toast-notification.warning i {
+  color: var(--warning-color);
+}
+
+.toast-notification.info i {
+  color: var(--primary-cyan);
+}
+
+.toast-content {
+  flex: 1;
+}
+
+.toast-title {
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.toast-message {
+  font-size: 0.85rem;
+  color: var(--muted-white);
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: var(--muted-white);
+  cursor: pointer;
+  padding: 0;
+  font-size: 1.2rem;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* ===============================================
    CALENDAR
    =============================================== */
 .calendar-container {
@@ -1080,6 +1450,10 @@ a:hover {
   padding: 25px;
 }
 
+.modal-body .form-group {
+  margin-bottom: 15px;
+}
+
 .modal-footer {
   padding: 20px 25px;
   border-top: 1px solid var(--border-color);
@@ -1187,6 +1561,12 @@ a:hover {
   .balance-grid {
     grid-template-columns: 1fr;
   }
+
+  .notification-panel {
+    right: 15px;
+    width: calc(100vw - 30px);
+    max-width: 380px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -1237,6 +1617,15 @@ a:hover {
   .filter-group select,
   .filter-group input {
     flex: 1;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .card-header .btn-primary {
+    width: 100%;
   }
 }
 

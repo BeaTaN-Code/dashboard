@@ -6,7 +6,7 @@ header('Content-Type: application/json');
 session_start();
 require_once __DIR__ . '/../config/db.php';
 
-// Verificar autenticación
+// Verificar autenticacion
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
   http_response_code(401);
   echo json_encode(['success' => false, 'error' => 'No autorizado']);
@@ -16,32 +16,33 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 $pdo = getDbConnection();
 if (!$pdo) {
   http_response_code(500);
-  echo json_encode(['success' => false, 'error' => 'Error de conexión a la base de datos']);
+  echo json_encode(['success' => false, 'error' => 'Error de conexion a la base de datos']);
   exit;
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
 $userId = $_SESSION['user_id'];
+$isAdmin = $_SESSION['is_admin'] ?? false;
 
 switch ($method) {
   case 'GET':
-    getTransactions($pdo, $userId);
+    getTransactions($pdo, $userId, $isAdmin);
     break;
   case 'POST':
     addTransaction($pdo, $userId);
     break;
   case 'PUT':
-    updateTransaction($pdo, $userId);
+    updateTransaction($pdo, $userId, $isAdmin);
     break;
   case 'DELETE':
-    deleteTransaction($pdo, $userId);
+    deleteTransaction($pdo, $userId, $isAdmin);
     break;
   default:
     http_response_code(405);
-    echo json_encode(['success' => false, 'error' => 'Método no permitido']);
+    echo json_encode(['success' => false, 'error' => 'Metodo no permitido']);
 }
 
-function getTransactions($pdo, $userId)
+function getTransactions($pdo, $userId, $isAdmin)
 {
   $tipgasxx = $_GET['tipgasxx'] ?? '';
   $tipo = $_GET['tipo'] ?? '';
@@ -55,8 +56,8 @@ function getTransactions($pdo, $userId)
     $sql = "SELECT * FROM FINANCIX WHERE REGESTXX = 'ACTIVO'";
     $params = [];
 
-    // Solo filtrar por usuario si NO es BEATAN
-    if ($tipgasxx !== 'BEATAN') {
+    // Solo filtrar por usuario si NO es BEATAN o si no es admin
+    if ($tipgasxx !== 'BEATAN' || !$isAdmin) {
       $sql .= " AND USRIDXXX = :userId";
       $params[':userId'] = $userId;
     }
@@ -88,7 +89,7 @@ function getTransactions($pdo, $userId)
     $stmt->execute($params);
     $transactions = $stmt->fetchAll();
 
-    // Calcular balances (solo transacciones hasta el día actual)
+    // Calcular balances (solo transacciones hasta el dia actual)
     $balanceSql = "SELECT 
             COALESCE(SUM(CASE WHEN MONTGASX > 0 AND FINCFECX <= :today THEN MONTGASX ELSE 0 END), 0) as income,
             COALESCE(SUM(CASE WHEN MONTGASX < 0 AND FINCFECX <= :today2 THEN ABS(MONTGASX) ELSE 0 END), 0) as expense
@@ -100,8 +101,8 @@ function getTransactions($pdo, $userId)
       ':today2' => $today
     ];
 
-    // Solo filtrar por usuario si NO es BEATAN
-    if ($tipgasxx !== 'BEATAN') {
+    // Solo filtrar por usuario si NO es BEATAN o si no es admin
+    if ($tipgasxx !== 'BEATAN' || !$isAdmin) {
       $balanceSql .= " AND USRIDXXX = :userId";
       $balanceParams[':userId'] = $userId;
     }
@@ -180,18 +181,18 @@ function addTransaction($pdo, $userId)
 
     echo json_encode([
       'success' => true,
-      'message' => 'Transacción agregada exitosamente',
+      'message' => 'Transaccion agregada exitosamente',
       'id' => $newId
     ]);
 
   } catch (Exception $e) {
     error_log('Add transaction error: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al agregar transacción']);
+    echo json_encode(['success' => false, 'error' => 'Error al agregar transaccion']);
   }
 }
 
-function updateTransaction($pdo, $userId)
+function updateTransaction($pdo, $userId, $isAdmin)
 {
   $input = json_decode(file_get_contents('php://input'), true);
 
@@ -204,7 +205,7 @@ function updateTransaction($pdo, $userId)
 
   if ($id <= 0) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'ID inválido']);
+    echo json_encode(['success' => false, 'error' => 'ID invalido']);
     return;
   }
 
@@ -216,13 +217,23 @@ function updateTransaction($pdo, $userId)
   }
 
   try {
-    // Verificar que la transacción pertenece al usuario
-    $stmt = $pdo->prepare("SELECT FINCTIDX FROM FINANCIX WHERE FINCTIDX = :id AND USRIDXXX = :userId");
-    $stmt->execute([':id' => $id, ':userId' => $userId]);
+    // Verificar que la transaccion pertenece al usuario o es admin con BEATAN
+    $stmt = $pdo->prepare("SELECT FINCTIDX, TIPGASXX, USRIDXXX FROM FINANCIX WHERE FINCTIDX = :id");
+    $stmt->execute([':id' => $id]);
+    $transaction = $stmt->fetch();
 
-    if (!$stmt->fetch()) {
+    if (!$transaction) {
+      http_response_code(404);
+      echo json_encode(['success' => false, 'error' => 'Transaccion no encontrada']);
+      return;
+    }
+
+    // Permitir edicion si es el dueno o si es admin y es BEATAN
+    $canEdit = ($transaction['USRIDXXX'] == $userId) || ($isAdmin && $transaction['TIPGASXX'] === 'BEATAN');
+
+    if (!$canEdit) {
       http_response_code(403);
-      echo json_encode(['success' => false, 'error' => 'No tiene permiso para editar esta transacción']);
+      echo json_encode(['success' => false, 'error' => 'No tiene permiso para editar esta transaccion']);
       return;
     }
 
@@ -235,7 +246,7 @@ function updateTransaction($pdo, $userId)
                 REGUSRMX = :userId,
                 REGFECMX = CURDATE(),
                 REGHORMX = CURTIME()
-            WHERE FINCTIDX = :id AND USRIDXXX = :userId2
+            WHERE FINCTIDX = :id
         ");
 
     $stmt->execute([
@@ -244,40 +255,49 @@ function updateTransaction($pdo, $userId)
       ':descripcion' => $descripcion,
       ':fecha' => $fecha,
       ':userId' => $userId,
-      ':id' => $id,
-      ':userId2' => $userId
+      ':id' => $id
     ]);
 
     echo json_encode([
       'success' => true,
-      'message' => 'Transacción actualizada exitosamente'
+      'message' => 'Transaccion actualizada exitosamente'
     ]);
 
   } catch (Exception $e) {
     error_log('Update transaction error: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al actualizar transacción']);
+    echo json_encode(['success' => false, 'error' => 'Error al actualizar transaccion']);
   }
 }
 
-function deleteTransaction($pdo, $userId)
+function deleteTransaction($pdo, $userId, $isAdmin)
 {
   $id = intval($_GET['id'] ?? 0);
 
   if ($id <= 0) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'ID inválido']);
+    echo json_encode(['success' => false, 'error' => 'ID invalido']);
     return;
   }
 
   try {
-    // Verificar que la transacción pertenece al usuario
-    $stmt = $pdo->prepare("SELECT FINCTIDX FROM FINANCIX WHERE FINCTIDX = :id AND USRIDXXX = :userId");
-    $stmt->execute([':id' => $id, ':userId' => $userId]);
+    // Verificar que la transaccion pertenece al usuario o es admin con BEATAN
+    $stmt = $pdo->prepare("SELECT FINCTIDX, TIPGASXX, USRIDXXX FROM FINANCIX WHERE FINCTIDX = :id");
+    $stmt->execute([':id' => $id]);
+    $transaction = $stmt->fetch();
 
-    if (!$stmt->fetch()) {
+    if (!$transaction) {
+      http_response_code(404);
+      echo json_encode(['success' => false, 'error' => 'Transaccion no encontrada']);
+      return;
+    }
+
+    // Permitir eliminacion si es el dueno o si es admin y es BEATAN
+    $canDelete = ($transaction['USRIDXXX'] == $userId) || ($isAdmin && $transaction['TIPGASXX'] === 'BEATAN');
+
+    if (!$canDelete) {
       http_response_code(403);
-      echo json_encode(['success' => false, 'error' => 'No tiene permiso para eliminar esta transacción']);
+      echo json_encode(['success' => false, 'error' => 'No tiene permiso para eliminar esta transaccion']);
       return;
     }
 
@@ -288,24 +308,23 @@ function deleteTransaction($pdo, $userId)
                 REGUSRMX = :userId,
                 REGFECMX = CURDATE(),
                 REGHORMX = CURTIME()
-            WHERE FINCTIDX = :id AND USRIDXXX = :userId2
+            WHERE FINCTIDX = :id
         ");
 
     $stmt->execute([
       ':userId' => $userId,
-      ':id' => $id,
-      ':userId2' => $userId
+      ':id' => $id
     ]);
 
     echo json_encode([
       'success' => true,
-      'message' => 'Transacción eliminada exitosamente'
+      'message' => 'Transaccion eliminada exitosamente'
     ]);
 
   } catch (Exception $e) {
     error_log('Delete transaction error: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al eliminar transacción']);
+    echo json_encode(['success' => false, 'error' => 'Error al eliminar transaccion']);
   }
 }
 ?>

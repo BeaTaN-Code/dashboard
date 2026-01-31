@@ -37,11 +37,28 @@ switch ($method) {
 
 function getMessage($pdo)
 {
+  // Check for pending count request
+  if (isset($_GET['count_pending'])) {
+    try {
+      $stmt = $pdo->query("SELECT COUNT(*) as count FROM FORMULARIO WHERE REGESTXX = 'ACTIVO' AND ESTADO = 'PENDIENTE'");
+      $result = $stmt->fetch();
+      echo json_encode([
+        'success' => true,
+        'count' => intval($result['count'] ?? 0)
+      ]);
+      return;
+    } catch (Exception $e) {
+      error_log('Count pending error: ' . $e->getMessage());
+      echo json_encode(['success' => false, 'count' => 0]);
+      return;
+    }
+  }
+
   $id = intval($_GET['id'] ?? 0);
 
   if ($id <= 0) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'ID inválido']);
+    echo json_encode(['success' => false, 'error' => 'ID invalido']);
     return;
   }
 
