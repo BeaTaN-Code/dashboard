@@ -1,6 +1,14 @@
 <?php 
 session_start();
 require_once __DIR__ . '/../config/db.php';
+$raw = file_get_contents("php://input");
+$data = json_decode($raw, true);
+
+if (!$data) {
+  http_response_code(400);
+  echo "No JSON recibido";
+  exit;
+}
 
 // Verificar autenticacion
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
