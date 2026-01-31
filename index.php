@@ -8,6 +8,9 @@ checkSession();
 
 $user = getCurrentUser();
 $pdo = getDbConnection();
+if (!$pdo) {
+  die("❌ No se pudo conectar a la base de datos");
+}
 $envPaths = [
   __DIR__ . '/../../.env',
   __DIR__ . '/../.env',
