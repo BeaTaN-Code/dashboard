@@ -83,7 +83,7 @@ function getTransactions($pdo, $userId, $isAdmin)
       $params[':month'] = $month;
     }
 
-    $sql .= " ORDER BY FINCFECX DESC, FINCTIDX DESC";
+    $sql .= " ORDER BY FINCFECX ASC";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
