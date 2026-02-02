@@ -58,7 +58,7 @@ function getDbConnection()
     ]);
 
     if ($dbType === 'mysql') {
-      $pdo->exec("SET time_zone = '-05:00'");
+      $pdo->exec("SET time_zone = '-10:00'");
     }
 
     return $pdo;
