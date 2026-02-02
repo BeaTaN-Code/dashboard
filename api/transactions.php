@@ -164,8 +164,8 @@ function addTransaction($pdo, $userId)
 
   try {
     $stmt = $pdo->prepare("
-            INSERT INTO FINANCIX (USRIDXXX, TIPGASXX, MONTGASX, CATGASXX, DESGASXX, FINCFECX, REGUSRXX, REGFECXX, REGHORXX, REGESTXX)
-            VALUES (:userId, :tipgasxx, :monto, :categoria, :descripcion, :fecha, :userId, CURDATE(), CURTIME(), 'ACTIVO')
+            INSERT INTO FINANCIX (USRIDXXX, TIPGASXX, MONTGASX, CATGASXX, DESGASXX, FINCFECX, REGUSRXX, REGFECXX, REGHORXX, REGESTXX, REGSTAMP)
+            VALUES (:userId, :tipgasxx, :monto, :categoria, :descripcion, :fecha, :userId, CURDATE(), CURTIME(), 'ACTIVO', NOW())
         ");
 
     $stmt->execute([
@@ -245,7 +245,8 @@ function updateTransaction($pdo, $userId, $isAdmin)
                 FINCFECX = :fecha,
                 REGUSRMX = :userId,
                 REGFECMX = CURDATE(),
-                REGHORMX = CURTIME()
+                REGHORMX = CURTIME(),
+                REGSTAMP = NOW()
             WHERE FINCTIDX = :id
         ");
 
@@ -307,7 +308,8 @@ function deleteTransaction($pdo, $userId, $isAdmin)
             SET REGESTXX = 'INACTIVO',
                 REGUSRMX = :userId,
                 REGFECMX = CURDATE(),
-                REGHORMX = CURTIME()
+                REGHORMX = CURTIME(),
+                REGSTAMP = NOW()
             WHERE FINCTIDX = :id
         ");
 
