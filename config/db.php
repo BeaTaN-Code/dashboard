@@ -1,7 +1,7 @@
 <?php
 // dashboard/config/db.php
 // Configuración de conexión a base de datos usando .env
-
+date_default_timezone_set('America/Bogota');
 function parse_env($path)
 {
   $env = [];
