@@ -3,6 +3,7 @@
 // API para gestionar transacciones financieras
 
 header('Content-Type: application/json');
+date_default_timezone_set('America/Bogota');
 session_start();
 require_once __DIR__ . '/../config/db.php';
 
