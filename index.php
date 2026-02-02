@@ -4,6 +4,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 // dashboard/index.php
 require_once __DIR__ . '/config/db.php';
+date_default_timezone_set('America/Bogota');
 
 /* CARGAR .ENV PRIMERO */
 $envPaths = [
