@@ -843,6 +843,10 @@ if ($user['is_admin']) {
       <div class="modal-body">
         <form id="addUserForm" onsubmit="saveNewUser(event)">
           <div class="form-group">
+            <label><i class="bi bi-person-badge"></i> Cédula</label>
+            <input type="text" name="cedula" id="addUserCedula" required maxlength="100">
+          </div>
+          <div class="form-group">
             <label><i class="bi bi-person"></i> Nombre Completo</label>
             <input type="text" name="nombre" id="addUserNombre" required maxlength="100">
           </div>
@@ -948,6 +952,27 @@ if ($user['is_admin']) {
       input.value = formatted;
     });
 
+    const input2 = document.getElementById("addUserCelular");
+
+    input2.addEventListener("input", function (e) {
+      let value = input.value.replace(/\D/g, ""); // solo números
+
+      if (value.startsWith("57")) {
+        value = value.substring(2);
+      }
+
+      let formatted = "+57 ";
+
+      if (value.length > 0) {
+        formatted += value.substring(0, 3);
+      }
+      if (value.length >= 4) {
+        formatted += " " + value.substring(3, 10);
+      }
+
+      input.value = formatted;
+    });
+
     const publicVapidKey = "<?php echo $env['VAPID_PUBLIC_KEY']; ?>";
 
     navigator.serviceWorker.register("sw.js");
@@ -960,26 +985,12 @@ if ($user['is_admin']) {
 
     async function subscribeUser() {
       try {
-        console.log("🟡 Iniciando suscripción push...");
-
         const reg = await navigator.serviceWorker.ready;
-        console.log("🟢 ServiceWorker listo:", reg);
-
-        console.log("🟡 Usando VAPID key:", publicVapidKey);
-
         const convertedKey = urlBase64ToUint8Array(publicVapidKey);
-        console.log("🟢 VAPID convertida:", convertedKey);
-
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: convertedKey
         });
-
-        console.log("🟢 Suscripción generada:", sub);
-        console.log("📌 Endpoint:", sub.endpoint);
-        console.log("📌 p256dh:", btoa(String.fromCharCode(...new Uint8Array(sub.getKey("p256dh")))));
-        console.log("📌 auth:", btoa(String.fromCharCode(...new Uint8Array(sub.getKey("auth")))));
-
         const res = await fetch("api/save_suscription.php", {
           method: "POST",
           body: JSON.stringify(sub),
@@ -987,13 +998,7 @@ if ($user['is_admin']) {
             "Content-Type": "application/json"
           }
         });
-
-        console.log("🟡 Respuesta del servidor:", res);
-
         const text = await res.text();
-        console.log("🟢 Respuesta body:", text);
-
-        console.log("✅ Usuario suscrito correctamente");
       } catch (err) {
         console.error("❌ Error en subscribeUser:", err);
       }
