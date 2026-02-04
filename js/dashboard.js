@@ -464,6 +464,7 @@ async function saveNewUser(e) {
   e.preventDefault();
 
   const data = {
+    cedula: document.getElementById("addUserCedula").value,
     nombre: document.getElementById("addUserNombre").value,
     email: document.getElementById("addUserEmail").value,
     celular: document.getElementById("addUserCelular").value,
