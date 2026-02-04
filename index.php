@@ -865,8 +865,8 @@ if ($user['is_admin']) {
           <div class="form-group">
             <label><i class="bi bi-shield"></i> Rol</label>
             <select name="admin" id="addUserAdmin">
-              <option value="0">Usuario</option>
-              <option value="1">Administrador</option>
+              <option value="NO">Usuario</option>
+              <option value="SI">Administrador</option>
             </select>
           </div>
         </form>
