@@ -85,6 +85,7 @@ function createUser($pdo, $adminId)
 {
   $input = json_decode(file_get_contents('php://input'), true);
 
+  $cedula = trim($input['cedula'] ?? '');
   $nombre = trim($input['nombre'] ?? '');
   $email = trim($input['email'] ?? '');
   $celular = trim($input['celular'] ?? '');
@@ -92,7 +93,7 @@ function createUser($pdo, $adminId)
   $isAdmin = intval($input['admin'] ?? 0);
 
   // Validaciones
-  if (empty($nombre) || empty($email) || empty($password)) {
+  if (empty($cedula) || empty($nombre) || empty($email) || empty($password)) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Nombre, email y contrasena son requeridos']);
     return;
@@ -125,11 +126,12 @@ function createUser($pdo, $adminId)
     $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
     $stmt = $pdo->prepare("
-            INSERT INTO BEATUSRS (USRNMEXX, USRMAILX, USRCELUL, USRPASXX, ISADMINX, REGUSRXX, REGFECXX, REGHORXX, REGESTXX)
-            VALUES (:nombre, :email, :celular, :password, :isAdmin, :adminId, CURDATE(), CURTIME(), 'ACTIVO')
+            INSERT INTO BEATUSRS (USRIDXXX, USRNMEXX, USRMAILX, USRCELUL, USRPASXX, ISADMINX, REGUSRXX, REGFECXX, REGHORXX, REGESTXX)
+            VALUES (:cedula, :nombre, :email, :celular, :password, :isAdmin, :adminId, CURDATE(), CURTIME(), 'ACTIVO')
         ");
 
     $stmt->execute([
+      ':cedula' => $cedula,
       ':nombre' => $nombre,
       ':email' => $email,
       ':celular' => $celular,
