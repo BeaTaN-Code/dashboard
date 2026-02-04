@@ -955,7 +955,7 @@ if ($user['is_admin']) {
     const input2 = document.getElementById("addUserCelular");
 
     input2.addEventListener("input", function (e) {
-      let value = input.value.replace(/\D/g, ""); // solo números
+      let value = input2.value.replace(/\D/g, ""); // solo números
 
       if (value.startsWith("57")) {
         value = value.substring(2);
@@ -970,7 +970,7 @@ if ($user['is_admin']) {
         formatted += " " + value.substring(3, 10);
       }
 
-      input.value = formatted;
+      input2.value = formatted;
     });
 
     const publicVapidKey = "<?php echo $env['VAPID_PUBLIC_KEY']; ?>";
