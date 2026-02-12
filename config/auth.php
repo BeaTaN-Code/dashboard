@@ -6,9 +6,18 @@ require_once __DIR__ . '/db.php';
 
 function loginUser($cedula, $password)
 {
+  // Rate limiting by IP + cedula
+  $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+  $rateLimitKey = 'login_' . $ip . '_' . $cedula;
+  $rateCheck = checkRateLimit($rateLimitKey, 5, 900);
+
+  if (!$rateCheck['allowed']) {
+    return ['success' => false, 'error' => $rateCheck['message']];
+  }
+
   $pdo = getDbConnection();
   if (!$pdo) {
-    return ['success' => false, 'error' => 'Error de conexión a la base de datos'];
+    return ['success' => false, 'error' => 'Error de conexion a la base de datos'];
   }
 
   try {
@@ -17,30 +26,36 @@ function loginUser($cedula, $password)
     $user = $stmt->fetch();
 
     if (!$user) {
-      return ['success' => false, 'error' => 'Usuario no encontrado o inactivo'];
+      recordRateLimitAttempt($rateLimitKey);
+      return ['success' => false, 'error' => 'Credenciales incorrectas'];
     }
 
-    // Verificar contraseña (hash)
     if (!password_verify($password, $user['USRPASXX'])) {
-      return ['success' => false, 'error' => 'Contraseña incorrecta'];
+      recordRateLimitAttempt($rateLimitKey);
+      return ['success' => false, 'error' => 'Credenciales incorrectas'];
     }
 
-    // Iniciar sesión
-    if (session_status() === PHP_SESSION_NONE) {
-      session_start();
-    }
+    // Clear rate limit on success
+    clearRateLimit($rateLimitKey);
+
+    // Regenerate session ID to prevent session fixation
+    initSecureSession();
+    session_regenerate_id(true);
 
     $_SESSION['user_id'] = $user['USRIDXXX'];
     $_SESSION['user_name'] = $user['USRNMEXX'];
     $_SESSION['user_email'] = $user['USRMAILX'];
     $_SESSION['is_admin'] = ($user['ISADMINX'] === 'SI');
     $_SESSION['logged_in'] = true;
+    $_SESSION['last_activity'] = time();
+    $_SESSION['ip_address'] = $ip;
+    $_SESSION['user_agent'] = $_SERVER['HTTP_USER_AGENT'] ?? '';
 
     return ['success' => true, 'user' => $user];
 
   } catch (Exception $e) {
     error_log('Login error: ' . $e->getMessage());
-    return ['success' => false, 'error' => 'Error al iniciar sesión'];
+    return ['success' => false, 'error' => 'Error al iniciar sesion'];
   }
 }
 
@@ -95,9 +110,7 @@ function registerUser($data)
 
 function logoutUser()
 {
-  if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-  }
+  initSecureSession();
 
   $_SESSION = [];
 

@@ -1,39 +1,56 @@
 <?php
 // dashboard/login.php
-session_start();
 require_once __DIR__ . '/config/auth.php';
+initSecureSession();
+setSecurityHeaders();
 
 $error = '';
 $success = '';
 
-// Si ya está logueado, redirigir al dashboard
+// Si ya esta logueado, redirigir al dashboard
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
   header('Location: index.php');
   exit;
 }
 
+$csrfToken = generateCsrfToken();
+
 // Procesar login
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $cedula = trim($_POST['cedula'] ?? '');
-  $password = $_POST['password'] ?? '';
-
-  if (empty($cedula) || empty($password)) {
-    $error = 'Por favor complete todos los campos';
+  // Validate CSRF token
+  $submittedToken = $_POST['csrf_token'] ?? '';
+  if (!validateCsrfToken($submittedToken)) {
+    $error = 'Token de seguridad invalido. Recarga la pagina.';
   } else {
-    $result = loginUser($cedula, $password);
+    $cedula = trim($_POST['cedula'] ?? '');
+    $password = $_POST['password'] ?? '';
 
-    if ($result['success']) {
-      header('Location: index.php');
-      exit;
+    if (empty($cedula) || empty($password)) {
+      $error = 'Por favor complete todos los campos';
     } else {
-      $error = $result['error'];
+      $result = loginUser($cedula, $password);
+
+      if ($result['success']) {
+        // Regenerate CSRF token after login
+        generateCsrfToken();
+        header('Location: index.php');
+        exit;
+      } else {
+        $error = $result['error'];
+      }
     }
   }
+  // Regenerate CSRF for next request
+  $csrfToken = generateCsrfToken();
 }
 
 // Mensaje de registro exitoso
 if (isset($_GET['registered']) && $_GET['registered'] === '1') {
-  $success = 'Registro exitoso. Por favor inicie sesión.';
+  $success = 'Registro exitoso. Por favor inicie sesion.';
+}
+// Mensaje de sesion expirada
+if (isset($_GET['expired']) && $_GET['expired'] === '1') {
+  $error = 'Tu sesion ha expirado. Inicia sesion nuevamente.';
 }
 ?>
 <!DOCTYPE html>
@@ -73,11 +90,12 @@ if (isset($_GET['registered']) && $_GET['registered'] === '1') {
         </div>
       <?php endif; ?>
 
-      <form method="POST" class="auth-form">
+      <form method="POST" class="auth-form" autocomplete="off">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
         <div class="form-group">
           <label for="cedula">
             <i class="bi bi-person-badge"></i>
-            Cédula
+            Cedula
           </label>
           <input type="text" id="cedula" name="cedula" placeholder="Ingresa tu cédula"
             value="<?php echo htmlspecialchars($_POST['cedula'] ?? ''); ?>" required>

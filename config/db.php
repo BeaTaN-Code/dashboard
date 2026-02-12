@@ -1,7 +1,158 @@
 <?php
 // dashboard/config/db.php
-// Configuración de conexión a base de datos usando .env
+// Configuracion de conexion a base de datos usando .env
 date_default_timezone_set('America/Bogota');
+
+// ===============================================
+// SECURE SESSION CONFIGURATION
+// ===============================================
+function initSecureSession()
+{
+  if (session_status() === PHP_SESSION_NONE) {
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+      || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.cookie_samesite', 'Strict');
+    ini_set('session.use_strict_mode', 1);
+    ini_set('session.use_only_cookies', 1);
+    ini_set('session.cookie_lifetime', 0);
+    ini_set('session.gc_maxlifetime', 3600);
+
+    if ($isHttps) {
+      ini_set('session.cookie_secure', 1);
+    }
+
+    session_start();
+  }
+}
+
+// ===============================================
+// SECURITY HEADERS
+// ===============================================
+function setSecurityHeaders()
+{
+  header('X-Content-Type-Options: nosniff');
+  header('X-Frame-Options: DENY');
+  header('X-XSS-Protection: 1; mode=block');
+  header('Referrer-Policy: strict-origin-when-cross-origin');
+  header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+  header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com; font-src 'self' fonts.gstatic.com cdn.jsdelivr.net; img-src 'self' data:; connect-src 'self';");
+}
+
+// ===============================================
+// CSRF PROTECTION
+// ===============================================
+function generateCsrfToken()
+{
+  if (session_status() === PHP_SESSION_NONE) {
+    initSecureSession();
+  }
+  if (empty($_SESSION['csrf_token']) || empty($_SESSION['csrf_token_time']) || (time() - $_SESSION['csrf_token_time']) > 3600) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    $_SESSION['csrf_token_time'] = time();
+  }
+  return $_SESSION['csrf_token'];
+}
+
+function validateCsrfToken($token)
+{
+  if (session_status() === PHP_SESSION_NONE) {
+    initSecureSession();
+  }
+  if (empty($_SESSION['csrf_token']) || empty($token)) {
+    return false;
+  }
+  if ((time() - ($_SESSION['csrf_token_time'] ?? 0)) > 3600) {
+    unset($_SESSION['csrf_token'], $_SESSION['csrf_token_time']);
+    return false;
+  }
+  return hash_equals($_SESSION['csrf_token'], $token);
+}
+
+function getCsrfTokenFromRequest()
+{
+  return $_SERVER['HTTP_X_CSRF_TOKEN']
+    ?? $_POST['csrf_token']
+    ?? '';
+}
+
+// ===============================================
+// RATE LIMITING (file-based)
+// ===============================================
+function checkRateLimit($identifier, $maxAttempts = 5, $windowSeconds = 900)
+{
+  $rateLimitDir = sys_get_temp_dir() . '/beatan_rate_limit';
+  if (!is_dir($rateLimitDir)) {
+    @mkdir($rateLimitDir, 0700, true);
+  }
+
+  $file = $rateLimitDir . '/' . md5($identifier) . '.json';
+  $data = ['attempts' => [], 'blocked_until' => 0];
+
+  if (file_exists($file)) {
+    $content = @file_get_contents($file);
+    if ($content) {
+      $data = json_decode($content, true) ?: $data;
+    }
+  }
+
+  $now = time();
+
+  // Check if currently blocked
+  if ($data['blocked_until'] > $now) {
+    $remaining = $data['blocked_until'] - $now;
+    return ['allowed' => false, 'remaining' => $remaining, 'message' => "Demasiados intentos. Intenta de nuevo en " . ceil($remaining / 60) . " minuto(s)."];
+  }
+
+  // Clean old attempts outside window
+  $data['attempts'] = array_filter($data['attempts'], function ($t) use ($now, $windowSeconds) {
+    return ($now - $t) < $windowSeconds;
+  });
+
+  if (count($data['attempts']) >= $maxAttempts) {
+    $data['blocked_until'] = $now + $windowSeconds;
+    $data['attempts'] = [];
+    @file_put_contents($file, json_encode($data), LOCK_EX);
+    return ['allowed' => false, 'remaining' => $windowSeconds, 'message' => "Demasiados intentos. Intenta de nuevo en " . ceil($windowSeconds / 60) . " minuto(s)."];
+  }
+
+  return ['allowed' => true];
+}
+
+function recordRateLimitAttempt($identifier)
+{
+  $rateLimitDir = sys_get_temp_dir() . '/beatan_rate_limit';
+  if (!is_dir($rateLimitDir)) {
+    @mkdir($rateLimitDir, 0700, true);
+  }
+
+  $file = $rateLimitDir . '/' . md5($identifier) . '.json';
+  $data = ['attempts' => [], 'blocked_until' => 0];
+
+  if (file_exists($file)) {
+    $content = @file_get_contents($file);
+    if ($content) {
+      $data = json_decode($content, true) ?: $data;
+    }
+  }
+
+  $data['attempts'][] = time();
+  @file_put_contents($file, json_encode($data), LOCK_EX);
+}
+
+function clearRateLimit($identifier)
+{
+  $rateLimitDir = sys_get_temp_dir() . '/beatan_rate_limit';
+  $file = $rateLimitDir . '/' . md5($identifier) . '.json';
+  if (file_exists($file)) {
+    @unlink($file);
+  }
+}
+
+// ===============================================
+// ENV PARSER
+// ===============================================
 function parse_env($path)
 {
   $env = [];
@@ -21,9 +172,11 @@ function parse_env($path)
   return $env;
 }
 
+// ===============================================
+// DATABASE CONNECTION
+// ===============================================
 function getDbConnection()
 {
-  // Buscar .env en múltiples ubicaciones posibles
   $envPaths = [
     __DIR__ . '/../../.env',
     __DIR__ . '/../.env',
@@ -55,6 +208,7 @@ function getDbConnection()
     $pdo = new PDO($dsn, $dbUser, $dbPass, [
       PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
       PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+      PDO::ATTR_EMULATE_PREPARES => false,
     ]);
 
     if ($dbType === 'mysql') {
@@ -68,24 +222,32 @@ function getDbConnection()
   }
 }
 
-// Función para verificar sesión activa
+// ===============================================
+// SESSION CHECK
+// ===============================================
 function checkSession()
 {
-  if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-  }
+  initSecureSession();
 
   if (!isset($_SESSION['user_id']) || !isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     header('Location: login.php');
     exit;
   }
+
+  // Session timeout: 1 hour of inactivity
+  if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > 3600) {
+    session_unset();
+    session_destroy();
+    header('Location: login.php?expired=1');
+    exit;
+  }
+  $_SESSION['last_activity'] = time();
 }
 
-// Función para obtener datos del usuario actual
 function getCurrentUser()
 {
   if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    initSecureSession();
   }
 
   return [
@@ -96,6 +258,27 @@ function getCurrentUser()
   ];
 }
 
-// Zona horaria para Colombia
-date_default_timezone_set('America/Bogota');
+// ===============================================
+// INPUT SANITIZATION HELPERS
+// ===============================================
+function sanitizeString($input)
+{
+  return htmlspecialchars(trim($input), ENT_QUOTES, 'UTF-8');
+}
+
+function sanitizeInt($input)
+{
+  return intval($input);
+}
+
+function sanitizeFloat($input)
+{
+  return floatval($input);
+}
+
+function validateDateFormat($date)
+{
+  $d = DateTime::createFromFormat('Y-m-d', $date);
+  return $d && $d->format('Y-m-d') === $date;
+}
 ?>

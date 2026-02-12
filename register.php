@@ -1,47 +1,61 @@
 <?php
 // dashboard/register.php
-session_start();
 require_once __DIR__ . '/config/auth.php';
+initSecureSession();
+setSecurityHeaders();
 
 $error = '';
 $formData = [];
 
-// Si ya está logueado, redirigir al dashboard
+// Si ya esta logueado, redirigir al dashboard
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
   header('Location: index.php');
   exit;
 }
 
+$csrfToken = generateCsrfToken();
+
 // Procesar registro
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $formData = [
-    'cedula' => trim($_POST['cedula'] ?? ''),
-    'nombre' => trim($_POST['nombre'] ?? ''),
-    'email' => trim($_POST['email'] ?? ''),
-    'celular' => trim($_POST['celular'] ?? ''),
-    'password' => $_POST['password'] ?? '',
-    'confirm_password' => $_POST['confirm_password'] ?? ''
-  ];
-
-  // Validaciones
-  if (empty($formData['cedula']) || empty($formData['nombre']) || empty($formData['email']) || empty($formData['password'])) {
-    $error = 'Por favor complete todos los campos obligatorios';
-  } elseif (!filter_var($formData['email'], FILTER_VALIDATE_EMAIL)) {
-    $error = 'Por favor ingrese un email válido';
-  } elseif (strlen($formData['password']) < 6) {
-    $error = 'La contraseña debe tener al menos 6 caracteres';
-  } elseif ($formData['password'] !== $formData['confirm_password']) {
-    $error = 'Las contraseñas no coinciden';
+  // Validate CSRF
+  $submittedToken = $_POST['csrf_token'] ?? '';
+  if (!validateCsrfToken($submittedToken)) {
+    $error = 'Token de seguridad invalido. Recarga la pagina.';
   } else {
-    $result = registerUser($formData);
+    $formData = [
+      'cedula' => trim($_POST['cedula'] ?? ''),
+      'nombre' => trim($_POST['nombre'] ?? ''),
+      'email' => trim($_POST['email'] ?? ''),
+      'celular' => trim($_POST['celular'] ?? ''),
+      'password' => $_POST['password'] ?? '',
+      'confirm_password' => $_POST['confirm_password'] ?? ''
+    ];
 
-    if ($result['success']) {
-      header('Location: login.php?registered=1');
-      exit;
+    // Validaciones
+    if (empty($formData['cedula']) || empty($formData['nombre']) || empty($formData['email']) || empty($formData['password'])) {
+      $error = 'Por favor complete todos los campos obligatorios';
+    } elseif (!preg_match('/^\d{5,15}$/', $formData['cedula'])) {
+      $error = 'La cedula debe contener solo numeros (5-15 digitos)';
+    } elseif (!filter_var($formData['email'], FILTER_VALIDATE_EMAIL)) {
+      $error = 'Por favor ingrese un email valido';
+    } elseif (strlen($formData['password']) < 8) {
+      $error = 'La contrasena debe tener al menos 8 caracteres';
+    } elseif (!preg_match('/[A-Z]/', $formData['password']) || !preg_match('/[0-9]/', $formData['password'])) {
+      $error = 'La contrasena debe contener al menos una mayuscula y un numero';
+    } elseif ($formData['password'] !== $formData['confirm_password']) {
+      $error = 'Las contrasenas no coinciden';
     } else {
-      $error = $result['error'];
+      $result = registerUser($formData);
+
+      if ($result['success']) {
+        header('Location: login.php?registered=1');
+        exit;
+      } else {
+        $error = $result['error'];
+      }
     }
   }
+  $csrfToken = generateCsrfToken();
 }
 ?>
 <!DOCTYPE html>
@@ -74,12 +88,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
       <?php endif; ?>
 
-      <form method="POST" class="auth-form">
+      <form method="POST" class="auth-form" autocomplete="off">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
         <div class="form-row">
           <div class="form-group">
             <label for="cedula">
               <i class="bi bi-person-badge"></i>
-              Cédula *
+              Cedula *
             </label>
             <div class="password-input">
               <input type="text" id="cedula" name="cedula" placeholder="Tu número de cédula"
