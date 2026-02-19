@@ -98,6 +98,37 @@ if ($user['is_admin']) {
     error_log('New messages error: ' . $e->getMessage());
   }
 }
+
+// Obtener datos para la gráfica (últimos 6 meses)
+$chartLabels = [];
+$chartIncome = [];
+$chartExpense = [];
+
+try {
+  $stmt = $pdo->prepare("
+    SELECT 
+      DATE_FORMAT(FINCFECX, '%Y-%m') as mes,
+      SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) as ingresos,
+      SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END) as gastos
+    FROM FINANCIX
+    WHERE REGESTXX = 'ACTIVO'
+      AND USRIDXXX = :userId
+      AND FINCFECX >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+    GROUP BY mes
+    ORDER BY mes ASC
+  ");
+  $stmt->execute([':userId' => $user['id']]);
+  $rows = $stmt->fetchAll();
+
+  foreach ($rows as $row) {
+    $chartLabels[] = date("M", strtotime($row['mes'] . "-01"));
+    $chartIncome[] = (float) $row['ingresos'];
+    $chartExpense[] = (float) $row['gastos'];
+  }
+
+} catch (Exception $e) {
+  error_log("Chart error: " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -897,6 +928,9 @@ if ($user['is_admin']) {
     window.upcomingExpenses = <?php echo json_encode($upcomingExpenses); ?>;
     window.newMessagesCount = <?php echo $newMessages ? $newMessages['count'] : 0; ?>;
 
+    const chartLabels = <?php echo json_encode($chartLabels); ?>;
+    const chartIncome = <?php echo json_encode($chartIncome); ?>;
+    const chartExpense = <?php echo json_encode($chartExpense); ?>;
     const input = document.getElementById("editUserCelular");
 
     input.addEventListener("input", function (e) {
@@ -986,11 +1020,11 @@ if ($user['is_admin']) {
     new Chart(ctx, {
       type: 'line',
       data: {
-        labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'],
+        labels: chartLabels,
         datasets: [
           {
             label: 'Ingresos',
-            data: [1200, 1500, 1400, 1800, 2000, 2200],
+            data: chartIncome,
             borderColor: '#22c55e',
             backgroundColor: 'rgba(34,197,94,0.2)',
             tension: 0.4,
@@ -998,7 +1032,7 @@ if ($user['is_admin']) {
           },
           {
             label: 'Gastos',
-            data: [800, 900, 1000, 1100, 1200, 1300],
+            data: chartExpense,
             borderColor: '#ef4444',
             backgroundColor: 'rgba(239,68,68,0.2)',
             tension: 0.4,
