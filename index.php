@@ -596,90 +596,74 @@ if ($user['is_admin']) {
                 </div>
               </div>
 
-              <!-- Upcoming Expenses Alert -->
-              <?php if (count($upcomingExpenses) > 0): ?>
-                <div class="upcoming-expenses-alert">
-                  <div class="alert-header">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    <h4>Gastos Proximos (7 dias)</h4>
-                  </div>
-                  <div class="upcoming-list">
-                    <?php foreach ($upcomingExpenses as $expense): ?>
-                      <div class="upcoming-item">
-                        <div class="upcoming-info">
-                          <span class="upcoming-category"><?php echo htmlspecialchars($expense['CATGASXX']); ?></span>
-                          <span class="upcoming-desc"><?php echo htmlspecialchars($expense['DESGASXX'] ?? ''); ?></span>
-                        </div>
-                        <div class="upcoming-details">
-                          <span class="upcoming-amount">$<?php echo number_format(abs($expense['MONTGASX']), 2); ?></span>
-                          <span class="upcoming-date"><?php echo date('d/m', strtotime($expense['FINCFECX'])); ?></span>
-                        </div>
-                      </div>
-                    <?php endforeach; ?>
-                  </div>
-                </div>
-              <?php endif; ?>
-
               <!-- Add Transaction -->
-              <div class="card">
-                <div class="card-header">
-                  <h3 class="card-title">
-                    <i class="bi bi-plus-circle"></i>
-                    Nuevo Movimiento Personal
-                  </h3>
+              <div id="movPersonal" class="modal-overlay">
+                <div class="modal">
+                  <div class="modal-header">
+                    <h3 class="card-title">
+                      <i class="bi bi-plus-circle"></i>
+                      Nuevo Movimiento Personal
+                    </h3>
+                    <button class="modal-close" onclick="closeModal('movPersonal')">&times;</button>
+                  </div>
+                  <div class="modal-body">
+                    <form class="transaction-form" id="personalTransactionForm"
+                      onsubmit="addTransaction(event, 'PERSONAL')">
+                      <div class="form-group">
+                        <label><i class="bi bi-tag"></i> Tipo</label>
+                        <select name="tipo" required>
+                          <option value="">Seleccionar...</option>
+                          <option value="INGRESO">Ingreso</option>
+                          <option value="GASTO">Gasto</option>
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label><i class="bi bi-currency-dollar"></i> Monto</label>
+                        <input type="number" name="monto" step="0.01" min="0" placeholder="0.00" required>
+                      </div>
+                      <div class="form-group">
+                        <label><i class="bi bi-bookmark"></i> Categoria</label>
+                        <select name="categoria" required>
+                          <option value="">Seleccionar...</option>
+                          <option value="Salario">Salario</option>
+                          <option value="Freelance">Freelance</option>
+                          <option value="Inversiones">Inversiones</option>
+                          <option value="Alimentacion">Alimentacion</option>
+                          <option value="Transporte">Transporte</option>
+                          <option value="Vivienda">Vivienda</option>
+                          <option value="Servicios">Servicios</option>
+                          <option value="Entretenimiento">Entretenimiento</option>
+                          <option value="Salud">Salud</option>
+                          <option value="Educacion">Educacion</option>
+                          <option value="Otros">Otros</option>
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label><i class="bi bi-calendar"></i> Fecha</label>
+                        <input type="date" name="fecha" required value="<?php echo date('Y-m-d'); ?>">
+                      </div>
+                      <div class="form-group full-width">
+                        <label><i class="bi bi-text-left"></i> Descripcion</label>
+                        <input type="text" name="descripcion" placeholder="Descripcion del movimiento" maxlength="150">
+                      </div>
+                      <button type="submit" class="btn-primary">
+                        <i class="bi bi-plus-lg"></i>
+                        Agregar Movimiento
+                      </button>
+                    </form>
+                  </div>
                 </div>
-                <form class="transaction-form" id="personalTransactionForm"
-                  onsubmit="addTransaction(event, 'PERSONAL')">
-                  <div class="form-group">
-                    <label><i class="bi bi-tag"></i> Tipo</label>
-                    <select name="tipo" required>
-                      <option value="">Seleccionar...</option>
-                      <option value="INGRESO">Ingreso</option>
-                      <option value="GASTO">Gasto</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label><i class="bi bi-currency-dollar"></i> Monto</label>
-                    <input type="number" name="monto" step="0.01" min="0" placeholder="0.00" required>
-                  </div>
-                  <div class="form-group">
-                    <label><i class="bi bi-bookmark"></i> Categoria</label>
-                    <select name="categoria" required>
-                      <option value="">Seleccionar...</option>
-                      <option value="Salario">Salario</option>
-                      <option value="Freelance">Freelance</option>
-                      <option value="Inversiones">Inversiones</option>
-                      <option value="Alimentacion">Alimentacion</option>
-                      <option value="Transporte">Transporte</option>
-                      <option value="Vivienda">Vivienda</option>
-                      <option value="Servicios">Servicios</option>
-                      <option value="Entretenimiento">Entretenimiento</option>
-                      <option value="Salud">Salud</option>
-                      <option value="Educacion">Educacion</option>
-                      <option value="Otros">Otros</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label><i class="bi bi-calendar"></i> Fecha</label>
-                    <input type="date" name="fecha" required value="<?php echo date('Y-m-d'); ?>">
-                  </div>
-                  <div class="form-group full-width">
-                    <label><i class="bi bi-text-left"></i> Descripcion</label>
-                    <input type="text" name="descripcion" placeholder="Descripcion del movimiento" maxlength="150">
-                  </div>
-                  <button type="submit" class="btn-primary">
-                    <i class="bi bi-plus-lg"></i>
-                    Agregar Movimiento
-                  </button>
-                </form>
               </div>
 
               <!-- Transactions Table -->
               <div class="card">
                 <div class="card-header">
                   <h3 class="card-title">
-                    <i class="bi bi-list-ul"></i>
+                    <i class="bi bi-currency-dollar"></i>
                     Movimientos Personales
+                    <button class="btn-secondary" onclick="openModal('movPersonal')">
+                      <i class="bi bi-plus"></i>
+                    </button>
                   </h3>
                   <div class="filters-bar" style="margin-bottom: 0;">
                     <div class="filter-group">

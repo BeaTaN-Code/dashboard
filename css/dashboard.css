@@ -704,7 +704,9 @@ a:hover {
 
 /* Table */
 .table-container {
-  overflow-x: auto;
+  width: 1100px;
+  height: 250px;
+  overflow: auto;
 }
 
 .data-table {
@@ -819,7 +821,7 @@ a:hover {
 /* Balance Cards */
 .balance-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 20px;
 }
 
@@ -839,11 +841,18 @@ a:hover {
   letter-spacing: 0.5px;
 }
 
-.balance-card .amount {
+.balance-card.total .amount {
   font-size: 1.6rem;
+  font-weight: bold;
+}
+
+.balance-card.income .amount,
+.balance-card.expense .amount {
+  font-size: 1rem;
 }
 
 .balance-card.total {
+  grid-column: 1 / span 2;
   border-color: rgba(50, 178, 207, 0.3);
 }
 
@@ -1551,15 +1560,50 @@ a:hover {
 }
 
 /* ===============================================
-   RESPONSIVE
+   RESPONSIVE (MEJORADO)
    =============================================== */
-@media (max-width: 1024px) {
+
+/* Large laptops */
+@media (max-width: 1200px) {
   .financial-layout {
     grid-template-columns: 1fr;
   }
 
   .balance-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .table-container {
+    width: 100%;
+  }
+
+  .balance-card.total .amount {
+    font-size: 1.2rem;
+    font-weight: bold;
+  }
+
+  .balance-card.income .amount,
+  .balance-card.expense .amount {
+    font-size: 1rem;
+  }
+}
+
+/* Tablets */
+@media (max-width: 992px) {
+  .financial-layout {
     grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .balance-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .filters-bar {
+    flex-wrap: wrap;
   }
 
   .notification-panel {
@@ -1567,11 +1611,19 @@ a:hover {
     width: calc(100vw - 30px);
     max-width: 380px;
   }
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    max-width: 450px;
+  }
 }
 
+/* Phones */
 @media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%);
+    position: fixed;
   }
 
   .sidebar.active {
@@ -1586,24 +1638,21 @@ a:hover {
     display: block;
   }
 
-  .form-row {
-    grid-template-columns: 1fr;
+  .content-area {
+    padding: 15px;
   }
 
+  .top-bar {
+    padding: 12px 15px;
+  }
+
+  .form-row,
   .transaction-form {
     grid-template-columns: 1fr;
   }
 
   .stats-grid {
     grid-template-columns: 1fr;
-  }
-
-  .content-area {
-    padding: 20px 15px;
-  }
-
-  .top-bar {
-    padding: 15px;
   }
 
   .filters-bar {
@@ -1626,6 +1675,57 @@ a:hover {
 
   .card-header .btn-primary {
     width: 100%;
+  }
+
+  .table-container {
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  .table-container {
+    width: 350px;
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+  .page-title h1 {
+    font-size: 1.1rem;
+  }
+
+  .stat-info h3 {
+    font-size: 1.3rem;
+  }
+
+  .balance-card .amount {
+    font-size: 1.2rem;
+  }
+
+  .card {
+    padding: 15px;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    width: 50%;
+  }
+}
+
+/* Extra small phones */
+@media (max-width: 360px) {
+  .top-bar {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .page-title {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .notification-panel {
+    right: 10px;
+    width: calc(100vw - 20px);
   }
 }
 
