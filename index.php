@@ -111,6 +111,7 @@ if ($user['is_admin']) {
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -159,6 +160,36 @@ if ($user['is_admin']) {
               <span class="nav-badge warning"><?php echo count($upcomingExpenses); ?></span>
             <?php endif; ?>
           </a>
+        </div>
+
+        <div class="calendar-dad">
+          <div class="calendar-container">
+            <div class="calendar-header">
+              <h4 style="font-size: 1rem; color: #fff;">Calendario</h4>
+              <div class="calendar-nav">
+                <button onclick="changeMonth('beatan', -1)"><i class="bi bi-chevron-left"></i></button>
+                <span class="calendar-month" id="beatan-calendar-month"></span>
+                <button onclick="changeMonth('beatan', 1)"><i class="bi bi-chevron-right"></i></button>
+              </div>
+            </div>
+            <div class="calendar-grid" id="beatan-calendar">
+              <!-- Calendar days will be rendered here -->
+            </div>
+            <div class="calendar-legend">
+              <div class="legend-item">
+                <span class="legend-dot today"></span>
+                <span>Hoy</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-dot holiday"></span>
+                <span>Festivo</span>
+              </div>
+            </div>
+            <div class="holiday-info" id="beatan-holiday-info" style="display: none;">
+              <h5 id="beatan-holiday-name"></h5>
+              <p id="beatan-holiday-date"></p>
+            </div>
+          </div>
         </div>
 
       </nav>
@@ -544,33 +575,7 @@ if ($user['is_admin']) {
 
               <!-- Calendar Sidebar -->
               <div class="financial-sidebar">
-                <div class="calendar-container">
-                  <div class="calendar-header">
-                    <h4 style="font-size: 1rem; color: #fff;">Calendario</h4>
-                    <div class="calendar-nav">
-                      <button onclick="changeMonth('beatan', -1)"><i class="bi bi-chevron-left"></i></button>
-                      <span class="calendar-month" id="beatan-calendar-month"></span>
-                      <button onclick="changeMonth('beatan', 1)"><i class="bi bi-chevron-right"></i></button>
-                    </div>
-                  </div>
-                  <div class="calendar-grid" id="beatan-calendar">
-                    <!-- Calendar days will be rendered here -->
-                  </div>
-                  <div class="calendar-legend">
-                    <div class="legend-item">
-                      <span class="legend-dot today"></span>
-                      <span>Hoy</span>
-                    </div>
-                    <div class="legend-item">
-                      <span class="legend-dot holiday"></span>
-                      <span>Festivo</span>
-                    </div>
-                  </div>
-                  <div class="holiday-info" id="beatan-holiday-info" style="display: none;">
-                    <h5 id="beatan-holiday-name"></h5>
-                    <p id="beatan-holiday-date"></p>
-                  </div>
-                </div>
+
               </div>
             </div>
           </div>
@@ -691,32 +696,9 @@ if ($user['is_admin']) {
 
             <!-- Calendar Sidebar -->
             <div class="financial-sidebar">
-              <div class="calendar-container">
-                <div class="calendar-header">
-                  <h4 style="font-size: 1rem; color: #fff;">Calendario</h4>
-                  <div class="calendar-nav">
-                    <button onclick="changeMonth('personal', -1)"><i class="bi bi-chevron-left"></i></button>
-                    <span class="calendar-month" id="personal-calendar-month"></span>
-                    <button onclick="changeMonth('personal', 1)"><i class="bi bi-chevron-right"></i></button>
-                  </div>
-                </div>
-                <div class="calendar-grid" id="personal-calendar">
-                  <!-- Calendar days will be rendered here -->
-                </div>
-                <div class="calendar-legend">
-                  <div class="legend-item">
-                    <span class="legend-dot today"></span>
-                    <span>Hoy</span>
-                  </div>
-                  <div class="legend-item">
-                    <span class="legend-dot holiday"></span>
-                    <span>Festivo</span>
-                  </div>
-                </div>
-                <div class="holiday-info" id="personal-holiday-info" style="display: none;">
-                  <h5 id="personal-holiday-name"></h5>
-                  <p id="personal-holiday-date"></p>
-                </div>
+              <div class="card">
+                <h3 style="text-align:center;">Rendimiento</h3>
+                <canvas id="performanceChart"></canvas>
               </div>
             </div>
           </div>
@@ -997,6 +979,52 @@ if ($user['is_admin']) {
 
     Notification.requestPermission().then(p => {
       if (p === "granted") subscribeUser();
+    });
+
+    const ctx = document.getElementById('performanceChart');
+
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'],
+        datasets: [
+          {
+            label: 'Ingresos',
+            data: [1200, 1500, 1400, 1800, 2000, 2200],
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34,197,94,0.2)',
+            tension: 0.4,
+            fill: true
+          },
+          {
+            label: 'Gastos',
+            data: [800, 900, 1000, 1100, 1200, 1300],
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239,68,68,0.2)',
+            tension: 0.4,
+            fill: true
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: {
+              color: '#fff'
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#aaa' }
+          },
+          y: {
+            ticks: { color: '#aaa' }
+          }
+        }
+      }
     });
   </script>
 

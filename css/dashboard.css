@@ -818,6 +818,15 @@ a:hover {
   gap: 25px;
 }
 
+.financial-sidebar .card {
+  height: 300px;
+}
+
+.financial-sidebar canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 /* Balance Cards */
 .balance-grid {
   display: grid;
@@ -1225,11 +1234,16 @@ a:hover {
 /* ===============================================
    CALENDAR
    =============================================== */
+
+.calendar-dad {
+  padding: 15px;
+}
+
 .calendar-container {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 20px;
+  padding: 15px;
 }
 
 .calendar-header {
@@ -1249,8 +1263,8 @@ a:hover {
   background: none;
   border: 1px solid var(--border-color);
   color: #ffffff;
-  width: 36px;
-  height: 36px;
+  width: 15px;
+  height: 15px;
   border-radius: 8px;
   cursor: pointer;
   display: flex;
@@ -1266,21 +1280,21 @@ a:hover {
 
 .calendar-month {
   font-family: var(--font-title);
-  font-size: 1.1rem;
+  font-size: 0.5rem;
   color: #ffffff;
 }
 
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 5px;
+  gap: 1px;
 }
 
 .calendar-day-header {
   text-align: center;
-  padding: 10px 5px;
+  padding: 5px 2.5px;
   color: var(--muted-white);
-  font-size: 0.75rem;
+  font-size: 0.6rem;
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -1295,7 +1309,7 @@ a:hover {
   cursor: pointer;
   transition: all var(--transition-fast);
   position: relative;
-  font-size: 0.9rem;
+  font-size: 0.7rem;
   gap: 2px;
 }
 
