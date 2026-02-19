@@ -607,6 +607,7 @@ a:hover {
   border-radius: 12px;
   padding: 25px;
   transition: all 0.3s ease;
+  overflow: auto;
 }
 
 .card:hover {
