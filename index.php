@@ -1047,29 +1047,14 @@ try {
         labels: chartLabels,
         datasets: [
           {
-            label: 'Rendimiento',
-            data: chartBalance,
-            borderColor: '#bac522',
-            backgroundColor: 'rgba(197, 194, 34, 0.2)',
-            tension: 0.4,
-            fill: true
-          },
-          {
             label: 'Ingresos',
             data: chartIncome,
             borderColor: '#22c55e',
             backgroundColor: 'rgba(34,197,94,0.2)',
             tension: 0.4,
-            fill: true
-          },
-          {
-            label: 'Acumulado',
-            data: chartAccumulated,
-            borderColor: '#3b82f6',          // azul fuerte
-            backgroundColor: 'rgba(59,130,246,0.2)',
-            tension: 0.4,
-            fill: false,                     // mejor sin relleno para que destaque
-            borderWidth: 3
+            fill: true,
+            pointRadius: 3,
+            order: 2
           },
           {
             label: 'Gastos',
@@ -1077,7 +1062,31 @@ try {
             borderColor: '#ef4444',
             backgroundColor: 'rgba(239,68,68,0.2)',
             tension: 0.4,
-            fill: true
+            fill: true,
+            pointRadius: 3,
+            order: 2
+          },
+          {
+            label: 'Rendimiento',
+            data: chartBalance,
+            borderColor: '#bac522',
+            backgroundColor: 'rgba(197,194,34,0.15)',
+            tension: 0.4,
+            fill: false,
+            borderDash: [6, 6],   // línea discontinua
+            pointRadius: 4,
+            order: 3
+          },
+          {
+            label: 'Acumulado',
+            data: chartAccumulated,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59,130,246,0.1)',
+            tension: 0.4,
+            fill: false,
+            borderWidth: 3,
+            pointRadius: 5,
+            order: 1
           }
         ]
       },
@@ -1089,6 +1098,14 @@ try {
             labels: {
               color: '#fff'
             }
+          },
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                const value = context.raw;
+                return `${context.dataset.label}: $${value.toLocaleString()}`;
+              }
+            }
           }
         },
         scales: {
@@ -1096,7 +1113,12 @@ try {
             ticks: { color: '#aaa' }
           },
           y: {
-            ticks: { color: '#aaa' }
+            ticks: {
+              color: '#aaa',
+              callback: function (value) {
+                return '$' + value.toLocaleString();
+              }
+            }
           }
         }
       }
