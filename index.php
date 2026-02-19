@@ -103,13 +103,21 @@ if ($user['is_admin']) {
 $chartLabels = [];
 $chartIncome = [];
 $chartExpense = [];
+$chartBalance = [];
 
 try {
   $stmt = $pdo->prepare("
     SELECT 
-      DATE_FORMAT(FINCFECX, '%Y-%m') as mes,
-      SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) as ingresos,
-      SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END) as gastos
+      DATE_FORMAT(FINCFECX, '%Y-%m') AS mes,
+
+      SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) AS ingresos,
+
+      SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END) AS gastos,
+
+      (
+        SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) - SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END)
+      ) AS balance
+
     FROM FINANCIX
     WHERE REGESTXX = 'ACTIVO'
       AND USRIDXXX = :userId
@@ -122,6 +130,7 @@ try {
 
   foreach ($rows as $row) {
     $chartLabels[] = date("M", strtotime($row['mes'] . "-01"));
+    $chartBalance[] = (float) $row['balance'];
     $chartIncome[] = (float) $row['ingresos'];
     $chartExpense[] = (float) $row['gastos'];
   }
@@ -931,6 +940,7 @@ try {
     const chartLabels = <?php echo json_encode($chartLabels); ?>;
     const chartIncome = <?php echo json_encode($chartIncome); ?>;
     const chartExpense = <?php echo json_encode($chartExpense); ?>;
+    const chartBalance = <?php echo json_encode($chartBalance); ?>;
     const input = document.getElementById("editUserCelular");
 
     input.addEventListener("input", function (e) {
@@ -1022,6 +1032,14 @@ try {
       data: {
         labels: chartLabels,
         datasets: [
+          {
+            label: 'Balance',
+            data: chartBalance,
+            borderColor: '#bac522',
+            backgroundColor: 'rgba(197, 194, 34, 0.2)',
+            tension: 0.4,
+            fill: true
+          },
           {
             label: 'Ingresos',
             data: chartIncome,
