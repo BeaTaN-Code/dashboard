@@ -104,26 +104,38 @@ $chartLabels = [];
 $chartIncome = [];
 $chartExpense = [];
 $chartBalance = [];
+$chartAccumulated = [];
 
 try {
   $stmt = $pdo->prepare("
     SELECT 
-      DATE_FORMAT(FINCFECX, '%Y-%m') AS mes,
+      mes,
+      ingresos,
+      gastos,
+      balance,
 
-      SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) AS ingresos,
+      SUM(balance) OVER (ORDER BY mes) AS acumulado
 
-      SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END) AS gastos,
+    FROM (
+      SELECT 
+        DATE_FORMAT(FINCFECX, '%Y-%m') AS mes,
 
-      (
-        SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) - SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END)
-      ) AS balance
+        SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) AS ingresos,
 
-    FROM FINANCIX
-    WHERE REGESTXX = 'ACTIVO'
-      AND USRIDXXX = :userId
-      AND FINCFECX >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
-    GROUP BY mes
-    ORDER BY mes ASC
+        SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END) AS gastos,
+
+        (
+          SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) -
+          SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END)
+        ) AS balance
+
+      FROM FINANCIX
+      WHERE REGESTXX = 'ACTIVO'
+        AND USRIDXXX = :userId
+        AND FINCFECX >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+      GROUP BY mes
+    ) t
+    ORDER BY mes ASC;
   ");
   $stmt->execute([':userId' => $user['id']]);
   $rows = $stmt->fetchAll();
@@ -133,6 +145,7 @@ try {
     $chartBalance[] = (float) $row['balance'];
     $chartIncome[] = (float) $row['ingresos'];
     $chartExpense[] = (float) $row['gastos'];
+    $chartAccumulated[] = (float) $row['acumulado'];
   }
 
 } catch (Exception $e) {
@@ -941,6 +954,7 @@ try {
     const chartIncome = <?php echo json_encode($chartIncome); ?>;
     const chartExpense = <?php echo json_encode($chartExpense); ?>;
     const chartBalance = <?php echo json_encode($chartBalance); ?>;
+    const chartAccumulated = <?php echo json_encode($chartAccumulated); ?>;
     const input = document.getElementById("editUserCelular");
 
     input.addEventListener("input", function (e) {
@@ -1047,6 +1061,15 @@ try {
             backgroundColor: 'rgba(34,197,94,0.2)',
             tension: 0.4,
             fill: true
+          },
+          {
+            label: 'Acumulado',
+            data: chartAccumulated,
+            borderColor: '#3b82f6',          // azul fuerte
+            backgroundColor: 'rgba(59,130,246,0.2)',
+            tension: 0.4,
+            fill: false,                     // mejor sin relleno para que destaque
+            borderWidth: 3
           },
           {
             label: 'Gastos',
