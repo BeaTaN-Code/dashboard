@@ -1033,7 +1033,7 @@ try {
         labels: chartLabels,
         datasets: [
           {
-            label: 'Balance',
+            label: 'Rendimiento',
             data: chartBalance,
             borderColor: '#bac522',
             backgroundColor: 'rgba(197, 194, 34, 0.2)',
