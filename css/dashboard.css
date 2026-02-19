@@ -1655,12 +1655,8 @@ a:hover {
     grid-template-columns: 1fr;
   }
 
-  .filters-bar {
-    flex-direction: column;
-  }
-
   .filter-group {
-    width: 100%;
+    width: 45%;
   }
 
   .filter-group select,
@@ -1683,7 +1679,7 @@ a:hover {
   }
 
   .table-container {
-    width: 325px;
+    width: auto;
   }
 }
 
