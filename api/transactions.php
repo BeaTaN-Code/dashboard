@@ -142,6 +142,7 @@ function addTransaction($pdo, $userId)
 {
   $input = json_decode(file_get_contents('php://input'), true);
 
+  $deudidxx = $input['deudidxx'] ?? '';
   $tipgasxx = $input['tipgasxx'] ?? '';
   $tipo = $input['tipo'] ?? '';
   $monto = floatval($input['monto'] ?? 0);
@@ -165,12 +166,13 @@ function addTransaction($pdo, $userId)
 
   try {
     $stmt = $pdo->prepare("
-            INSERT INTO FINANCIX (USRIDXXX, TIPGASXX, MONTGASX, CATGASXX, DESGASXX, FINCFECX, REGUSRXX, REGFECXX, REGHORXX, REGESTXX, REGSTAMP)
-            VALUES (:userId, :tipgasxx, :monto, :categoria, :descripcion, :fecha, :userId, CURDATE(), CURTIME(), 'ACTIVO', NOW())
+            INSERT INTO FINANCIX (USRIDXXX, DEUDIDXX, TIPGASXX, MONTGASX, CATGASXX, DESGASXX, FINCFECX, REGUSRXX, REGFECXX, REGHORXX, REGESTXX, REGSTAMP)
+            VALUES (:userId, :deudidxx, :tipgasxx, :monto, :categoria, :descripcion, :fecha, :userId, CURDATE(), CURTIME(), 'ACTIVO', NOW())
         ");
 
     $stmt->execute([
       ':userId' => $userId,
+      ':deudidxx' => $deudidxx,
       ':tipgasxx' => $tipgasxx,
       ':monto' => $monto,
       ':categoria' => $categoria,
@@ -199,6 +201,7 @@ function updateTransaction($pdo, $userId, $isAdmin)
 
   $id = intval($input['id'] ?? 0);
   $tipo = $input['tipo'] ?? '';
+  $deudidxx = $input['deudidxx'] ?? '';
   $monto = floatval($input['monto'] ?? 0);
   $categoria = $input['categoria'] ?? '';
   $descripcion = $input['descripcion'] ?? '';
@@ -240,7 +243,8 @@ function updateTransaction($pdo, $userId, $isAdmin)
 
     $stmt = $pdo->prepare("
             UPDATE FINANCIX 
-            SET MONTGASX = :monto, 
+            SET DEUDIDXX = :deudidxx,
+                MONTGASX = :monto, 
                 CATGASXX = :categoria, 
                 DESGASXX = :descripcion, 
                 FINCFECX = :fecha,
@@ -252,6 +256,7 @@ function updateTransaction($pdo, $userId, $isAdmin)
         ");
 
     $stmt->execute([
+      ':deudidxx' => $deudidxx,
       ':monto' => $monto,
       ':categoria' => $categoria,
       ':descripcion' => $descripcion,

@@ -27,6 +27,11 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   loadTransactions("PERSONAL");
 
+  if (window.isAdmin) {
+    loadDebts("BEATAN");
+  }
+  loadDebts("PERSONAL");
+
   // Cerrar panel de notificaciones al hacer clic fuera
   document.addEventListener("click", function (e) {
     const panel = document.getElementById("notificationPanel");
@@ -719,6 +724,7 @@ async function addTransaction(e, tipgasxx) {
 
   const data = {
     tipgasxx: tipgasxx,
+    deudidxx: formData.get("deudidxx"),
     tipo: formData.get("tipo"),
     monto: parseFloat(formData.get("monto")),
     categoria: formData.get("categoria"),
@@ -762,9 +768,11 @@ async function editTransaction(id, tipgasxx) {
 
       if (transaction) {
         const monto = parseFloat(transaction.MONTGASX);
+        loadDeudasSelect("editTransactionDeudidxx", transaction.DEUDIDXX);
 
         document.getElementById("editTransactionId").value = id;
         document.getElementById("editTransactionTipgasxx").value = tipgasxx;
+        document.getElementById("editTransactionDeudidxx").value = transaction.DEUDIDXX ?? "";
         document.getElementById("editTransactionTipo").value =
           monto >= 0 ? "INGRESO" : "GASTO";
         document.getElementById("editTransactionMonto").value = Math.abs(monto);
@@ -790,6 +798,7 @@ async function updateTransaction(e) {
   const data = {
     id: document.getElementById("editTransactionId").value,
     tipo: document.getElementById("editTransactionTipo").value,
+    deudidxx: document.getElementById("editTransactionDeudidxx").value,
     monto: parseFloat(document.getElementById("editTransactionMonto").value),
     categoria: document.getElementById("editTransactionCategoria").value,
     fecha: document.getElementById("editTransactionFecha").value,
@@ -846,6 +855,250 @@ async function deleteTransaction(id, tipgasxx) {
   }
 }
 
+/**
+ * Gestión de Deudas
+ */
+
+async function loadDebts(tipperxx) {
+  const prefix = tipperxx.toLowerCase(); // beatan | personal
+  const container = document.getElementById(`${prefix}DebtsTable`);
+
+  if (!container) return;
+
+  container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  try {
+    let url = `api/debts.php?tipperxx=${tipperxx}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.success) {
+      renderDebtsTable(tipperxx, data.data);
+    } else {
+      container.innerHTML = `<p>Error al cargar deudas</p>`;
+    }
+  } catch (err) {
+    console.error(err);
+    container.innerHTML = `<p>Error de conexion</p>`;
+  }
+}
+
+function renderDebtsTable(tipperxx, debts) {
+  const prefix = tipperxx.toLowerCase();
+  const container = document.getElementById(`${prefix}DebtsTable`);
+
+  if (!debts || debts.length === 0) {
+    container.innerHTML = `<div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <h3>Sin deudas</h3>
+                <p>No hay Deudas registradas</p>
+            </div>`;
+    return;
+  }
+
+  let html = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Día pago</th>
+          <th>Tipo</th>
+          <th>Descripcion</th>
+          <th>Monto Total</th>
+          <th>Valor Cuota</th>
+          <th>Pagado</th>
+          <th>Restante</th>
+          <th>N° Cuotas</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  debts.forEach(d => {
+    const monto = parseFloat(d.MONDEUDX);
+    const valCuot = parseFloat(d.MONCUOTX);
+    const abonCuot = d.MONCUOTX && d.PAGCUOTX
+      ? d.MONCUOTX * d.PAGCUOTX
+      : (d.ABONCUOT ?? 0);
+    const resCuot = parseFloat(d.MONDEUDX - (abonCuot));
+    const isIncome = d.TIPDEUDX;
+    html += `
+      <tr>
+        <td>${d.FECCUOTX}</td>
+        <td>
+          <span class="badge ${isIncome == "A FAVOR" ? "badge-income" : "badge-expense"}">
+            ${escapeHtml(d.TIPDEUDX)}
+          </span>
+        </td>
+        <td>${escapeHtml(d.DESDEUDX || "-")}</td>
+        <td>
+          <span class="amount ${isIncome == "A FAVOR" ? "positive" : "negative"}">
+            ${isIncome == "A FAVOR" ? "+" : "-"}${formatCurrency(monto)}
+          </span>
+        </td>
+        <td>
+          <span class="amount ${isIncome == "A FAVOR" ? "positive" : "negative"}">
+            ${formatCurrency(valCuot)}
+          </span>
+        </td>
+        <td>${formatCurrency(abonCuot)}</td>
+        <td>${formatCurrency(resCuot)}</td>
+        <td>${(d.PAGCUOTX ?? 0) + "/" + (d.NUMCUOTX ?? "-") ?? "-"}</td>
+        <td>
+        <div class="action-buttons">
+          <button class="btn-icon" onclick="editDebt(${d.DEUDIDXX}, '${tipperxx}')" title="Editar">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn-icon" onclick="deleteDebt(${d.DEUDIDXX}, '${tipperxx}')" title="Eliminar" style="color: var(--error-color);">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+        </td>
+      </tr>
+    `;
+  });
+
+  html += "</tbody></table>";
+  container.innerHTML = html;
+}
+
+async function addDebt(e, tipperxx) {
+  e.preventDefault();
+
+  const form = e.target;
+  const data = {
+    tipperxx: tipperxx,
+    tipdeudx: form.tipdeudx.value,
+    mondeudx: parseFloat(form.mondeudx.value),
+    desdeudx: form.desdeudx.value,
+    numcuotx: form.numcuotx.value || null,
+    feccuotx: form.feccuotx.value || null,
+    moncuotx: form.moncuotx.value || null
+  };
+
+  try {
+    const response = await fetch("api/debts.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      showAlert("Deuda registrada", "success");
+      form.reset();
+      loadDebts(tipperxx);
+    } else {
+      showAlert(result.error, "error");
+    }
+  } catch (err) {
+    console.error(err);
+    showAlert("Error de conexion", "error");
+  }
+}
+
+async function editDebt(id, tipperxx) {
+  try {
+    const response = await fetch(`api/debts.php?tipperxx=${tipperxx}`);
+    const data = await response.json();
+
+    if (data.success) {
+      const d = data.data.find(x => x.DEUDIDXX == id);
+
+      document.getElementById("editDebtId").value = d.DEUDIDXX;
+      document.getElementById("editDebtTipo").value = d.TIPDEUDX;
+      document.getElementById("mondeudx").value = d.MONDEUDX;
+      document.getElementById("editDebtDesc").value = d.DESDEUDX;
+      document.getElementById("moncuotx").value = d.NUMCUOTX;
+      document.getElementById("editDebtFecha").value = d.FECCUOTX;
+      document.getElementById("moncuotx").value = d.MONCUOTX;
+      document.getElementById("editDebtTipperxx").value = tipperxx;
+
+      openModal("editDebtModal");
+    }
+  } catch (err) {
+    console.error(err);
+    showAlert("Error al cargar deuda", "error");
+  }
+}
+
+async function updateDebt(e) {
+  e.preventDefault();
+
+  const data = {
+    id: document.getElementById("editDebtId").value,
+    tipdeudx: document.getElementById("editDebtTipo").value,
+    mondeudx: document.getElementById("mondeudx").value,
+    desdeudx: document.getElementById("editDebtDesc").value,
+    numcuotx: document.getElementById("numcuotx").value || null,
+    feccuotx: document.getElementById("editDebtFecha").value,
+    moncuotx: document.getElementById("moncuotx").value
+  };
+
+  const tipperxx = document.getElementById("editDebtTipperxx").value;
+
+  const response = await fetch("api/debts.php", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  });
+
+  const result = await response.json();
+
+  if (result.success) {
+    showAlert("Deuda actualizada", "success");
+    closeModal("editDebtModal");
+    loadDebts(tipperxx);
+  } else {
+    showAlert(result.error, "error");
+  }
+}
+
+async function deleteDebt(id, tipperxx) {
+  if (!confirm("Eliminar deuda?")) return;
+
+  const response = await fetch(`api/debts.php?id=${id}`, {
+    method: "DELETE"
+  });
+
+  const result = await response.json();
+
+  if (result.success) {
+    showAlert("Deuda eliminada", "success");
+    loadDebts(tipperxx);
+  } else {
+    showAlert(result.error, "error");
+  }
+}
+
+async function loadDeudasSelect(selectId, selectedDeudidxx = null) {
+  try {
+    const response = await fetch("api/deudas_select.php");
+    const data = await response.json();
+
+    const select = document.getElementById(selectId);
+    if (!select) return;
+
+    select.innerHTML = `<option value="">Seleccione una deuda</option>`;
+
+    if (data.success) {
+      data.data.forEach((d) => {
+        const option = document.createElement("option");
+        option.value = d.DEUDIDXX;
+        option.textContent = `${d.DEUDIDXX} - ${d.DESDEUDX}`;
+
+        if (selectedDeudidxx && d.DEUDIDXX == selectedDeudidxx) {
+          option.selected = true;
+        }
+
+        select.appendChild(option);
+      });
+    }
+  } catch (error) {
+    console.error("Error cargando deudas:", error);
+  }
+}
 // ===============================================
 // CALENDARIO
 // ===============================================
@@ -1011,6 +1264,11 @@ function openModal(modalId) {
     modal.classList.add("active");
     document.body.style.overflow = "hidden";
   }
+}
+
+function openPersonalModal() {
+  openModal('movPersonal');
+  loadDeudasSelect("addDeudidxx");
 }
 
 function closeModal(modalId) {

@@ -676,6 +676,12 @@ try {
                         </select>
                       </div>
                       <div class="form-group">
+                        <label><i class="bi bi-tag"></i> Deuda Asociada</label>
+                        <select name="deudidxx" id="addDeudidxx">
+                          <option value="">Seleccione una deuda</option>
+                        </select>
+                      </div>
+                      <div class="form-group">
                         <label><i class="bi bi-currency-dollar"></i> Monto</label>
                         <input type="number" name="monto" step="0.01" min="0" placeholder="0.00" required>
                       </div>
@@ -719,7 +725,7 @@ try {
                   <h3 class="card-title">
                     <i class="bi bi-currency-dollar"></i>
                     Movimientos Personales
-                    <button class="btn-secondary" onclick="openModal('movPersonal')">
+                    <button class="btn-secondary" onclick="openPersonalModal()">
                       <i class="bi bi-plus"></i>
                     </button>
                   </h3>
@@ -745,10 +751,27 @@ try {
                   </div>
                 </div>
               </div>
+
+              <!-- Card deudas -->
+              <div class="card">
+                <div class="card-header">
+                  <h3 class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                    <span><i class="bi bi-credit-card-2-front"></i> Deudas</span>
+                    <button class="btn-secondary" onclick="openModal('addDebtModal')">
+                      <i class="bi bi-plus"></i>
+                    </button>
+                  </h3>
+                </div>
+                <div class="table-container" id="personalDebtsTable">
+                  <div class="loading">
+                    <div class="spinner"></div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <!-- Calendar Sidebar -->
             <div class="financial-sidebar">
+              <!-- Card rendimiento -->
               <div class="card">
                 <h3 style="text-align:center;">Rendimiento</h3>
                 <canvas id="performanceChart"></canvas>
@@ -794,6 +817,14 @@ try {
               <option value="GASTO">Gasto</option>
             </select>
           </div>
+
+          <div class="form-group">
+            <label><i class="bi bi-tag"></i> Deuda Asociada</label>
+            <select name="deudidxx" id="editTransactionDeudidxx">
+              <option value="">Seleccione una deuda</option>
+            </select>
+          </div>
+
           <div class="form-group">
             <label><i class="bi bi-currency-dollar"></i> Monto</label>
             <input type="number" name="monto" id="editTransactionMonto" step="0.01" min="0" required>
@@ -818,6 +849,115 @@ try {
           onclick="document.getElementById('editTransactionForm').dispatchEvent(new Event('submit'))">
           <i class="bi bi-check-lg"></i> Guardar
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Add Debt -->
+  <div class="modal-overlay" id="addDebtModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3><i class="bi bi-credit-card"></i> Nueva Deuda</h3>
+        <button class="modal-close" onclick="closeModal('addDebtModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="addDebtForm" onsubmit="addDebt(event, 'PERSONAL')">
+
+          <div class="form-group">
+            <label>Tipo deuda *</label>
+            <select name="tipdeudx" required>
+              <option value="A FAVOR">A favor</option>
+              <option value="EN CONTRA">En contra</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Día de pago de cuota</label>
+            <input type="number" name="feccuotx" min="1" max="31" step="1"
+              oninput="if(this.value > 31) this.value = 31; if(this.value < 1) this.value = 1;">
+          </div>
+
+          <div class="form-group">
+            <label>Monto total *</label>
+            <input type="number" class="mondeudx" name="mondeudx" step="0.01" required>
+          </div>
+
+          <div class="form-group">
+            <label>N° Cuotas</label>
+            <input type="number" class="numcuotx" name="numcuotx" min="1">
+          </div>
+
+          <div class="form-group">
+            <label>Valor cuota</label>
+            <input type="number" class="moncuotx" name="moncuotx" step="0.01" min="0" placeholder="0.00">
+          </div>
+
+          <div class="form-group full-width">
+            <label>Descripción *</label>
+            <input type="text" name="desdeudx" maxlength="150" required>
+          </div>
+
+          <button type="submit" class="btn-primary">
+            Guardar deuda
+          </button>
+
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Edit Debt -->
+  <div class="modal-overlay" id="editDebtModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3><i class="bi bi-credit-card"></i> Editar Deuda</h3>
+        <button class="modal-close" onclick="closeModal('editDebtModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="editDebtForm" onsubmit="updateDebt(event)">
+
+          <input type="hidden" name="id" id="editDebtId">
+          <input type="hidden" name="tipperxx" id="editDebtTipperxx">
+
+          <div class="form-group">
+            <label>Tipo deuda *</label>
+            <select name="tipdeudx" id="editDebtTipo" required>
+              <option value="A FAVOR">A favor</option>
+              <option value="EN CONTRA">En contra</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Día de pago de cuota</label>
+            <input type="number" name="feccuotx" id="editDebtFecha" min="1" max="31" step="1"
+              oninput="if(this.value > 31) this.value = 31; if(this.value < 1) this.value = 1;">
+          </div>
+
+          <div class="form-group">
+            <label>Monto total *</label>
+            <input type="number" id="mondeudx" name="mondeudx" step="0.01" required>
+          </div>
+
+          <div class="form-group">
+            <label>N° Cuotas</label>
+            <input type="number" id="numcuotx" name="numcuotx" min="1">
+          </div>
+
+          <div class="form-group">
+            <label>Valor cuota</label>
+            <input type="number" id="moncuotx" name="moncuotx" step="0.01" min="0" placeholder="0.00">
+          </div>
+
+          <div class="form-group full-width">
+            <label>Descripción *</label>
+            <input type="text" name="desdeudx" id="editDebtDesc" maxlength="150" required>
+          </div>
+
+          <button type="submit" class="btn-primary">
+            Guardar deuda
+          </button>
+
+        </form>
       </div>
     </div>
   </div>
@@ -1041,6 +1181,7 @@ try {
 
     const ctx = document.getElementById('performanceChart');
 
+    //Gráfica
     new Chart(ctx, {
       type: 'line',
       data: {
@@ -1123,6 +1264,24 @@ try {
         }
       }
     });
+
+    //Valor Cuotas
+    const montoInput = document.getElementById("mondeudx") || document.querySelectorAll(".mondeudx");
+    const cuotasInput = document.getElementById("numcuotx") || document.querySelectorAll(".numcuotx");
+    const valorCuotaInput = document.getElementById("moncuotx") || document.querySelectorAll(".moncuotx");
+
+    function calcularCuota() {
+      const monto = parseFloat(montoInput.value);
+      const cuotas = parseInt(cuotasInput.value);
+
+      if (!isNaN(monto) && !isNaN(cuotas) && cuotas > 0) {
+        const valor = monto / cuotas;
+        valorCuotaInput.value = valor.toFixed(2);
+      }
+    }
+
+    montoInput.addEventListener("input", calcularCuota);
+    cuotasInput.addEventListener("input", calcularCuota);
   </script>
 
   <script src="js/dashboard.js"></script>
