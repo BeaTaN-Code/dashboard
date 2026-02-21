@@ -142,13 +142,17 @@ function addTransaction($pdo, $userId)
 {
   $input = json_decode(file_get_contents('php://input'), true);
 
-  $deudidxx = $input['deudidxx'] ?? '';
+  $deudidxx = $input['deudidxx'] ?? null;
   $tipgasxx = $input['tipgasxx'] ?? '';
   $tipo = $input['tipo'] ?? '';
   $monto = floatval($input['monto'] ?? 0);
   $categoria = $input['categoria'] ?? '';
   $descripcion = $input['descripcion'] ?? '';
   $fecha = $input['fecha'] ?? date('Y-m-d');
+
+  if ($deudidxx === '' || $deudidxx === 0) {
+    $deudidxx = null;
+  }
 
   // Validaciones
   if (empty($tipgasxx) || empty($tipo) || $monto <= 0 || empty($categoria) || empty($fecha)) {
@@ -201,11 +205,15 @@ function updateTransaction($pdo, $userId, $isAdmin)
 
   $id = intval($input['id'] ?? 0);
   $tipo = $input['tipo'] ?? '';
-  $deudidxx = $input['deudidxx'] ?? '';
+  $deudidxx = $input['deudidxx'] ?? null;
   $monto = floatval($input['monto'] ?? 0);
   $categoria = $input['categoria'] ?? '';
   $descripcion = $input['descripcion'] ?? '';
   $fecha = $input['fecha'] ?? '';
+
+  if ($deudidxx === '' || $deudidxx === 0) {
+    $deudidxx = null;
+  }
 
   if ($id <= 0) {
     http_response_code(400);
