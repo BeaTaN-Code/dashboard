@@ -58,7 +58,7 @@ foreach ($deudas as $d) {
   echo "Fecha inicio: " . $inicio->format('Y-m-d') . "\n";
   echo "Meses transcurridos: $mesesTranscurridos\n";
 
-  $maxCuotas = (int) $d['NUMCUOTX'];
+  $maxCuotas = min($mesesTranscurridos, (int) $d['NUMCUOTX']);
   $existentes = (int) $d['EXISTENTES'];
   $faltantes = $maxCuotas - $existentes;
 
