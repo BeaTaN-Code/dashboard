@@ -2,13 +2,20 @@
 require_once __DIR__ . '/../config/db.php';
 $pdo = getDbConnection();
 
+echo "=============================\n";
+echo "INICIANDO CRON DE DEUDAS\n";
+echo "=============================\n";
+
 $hoy = new DateTime('today');
+echo "Fecha HOY: " . $hoy->format('Y-m-d') . "\n";
 
 /*
 ========================================
 1️⃣ GENERAR CUOTAS AUTOMÁTICAS (CON CUOTAS)
 ========================================
 */
+echo "\n[FASE 1] GENERAR CUOTAS AUTOMÁTICAS\n";
+
 $sql = "
 SELECT 
   D.DEUDIDXX,
@@ -37,18 +44,32 @@ GROUP BY
 $stmt = $pdo->query($sql);
 $deudas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+echo "Deudas encontradas: " . count($deudas) . "\n";
+
 foreach ($deudas as $d) {
+  echo "\n-----------------------------\n";
+  echo "Procesando DEUDA ID: {$d['DEUDIDXX']}\n";
+  print_r($d);
 
   $inicio = new DateTime($d['REGFECXX']);
   $diff = $inicio->diff($hoy);
   $mesesTranscurridos = ($diff->y * 12) + $diff->m + 1;
 
+  echo "Fecha inicio: " . $inicio->format('Y-m-d') . "\n";
+  echo "Meses transcurridos: $mesesTranscurridos\n";
+
   $maxCuotas = min($mesesTranscurridos, (int) $d['NUMCUOTX']);
   $existentes = (int) $d['EXISTENTES'];
   $faltantes = $maxCuotas - $existentes;
 
-  if ($faltantes <= 0)
+  echo "Cuotas máximas: $maxCuotas\n";
+  echo "Cuotas existentes: $existentes\n";
+  echo "Cuotas faltantes: $faltantes\n";
+
+  if ($faltantes <= 0) {
+    echo "❌ No se generan cuotas\n";
     continue;
+  }
 
   for ($i = $existentes; $i < $maxCuotas; $i++) {
 
@@ -57,6 +78,8 @@ foreach ($deudas as $d) {
 
     $dia = str_pad($d['FECCUOTX'], 2, '0', STR_PAD_LEFT);
     $fechaFinal = $fechaCuota->format("Y-m") . "-$dia";
+
+    echo "Insertando cuota #".($i+1)." con fecha: $fechaFinal\n";
 
     $insert = $pdo->prepare("
       INSERT INTO FINANCIX (
@@ -101,6 +124,8 @@ foreach ($deudas as $d) {
       ':desc' => 'Cuota automática deuda: ' . $d['DESDEUDX'],
       ':fecha' => $fechaFinal
     ]);
+
+    echo "✔ Cuota insertada\n";
   }
 }
 
@@ -109,6 +134,8 @@ foreach ($deudas as $d) {
 2️⃣ ACTUALIZAR CUOTAS PAGADAS
 =====================================
 */
+echo "\n[FASE 2] ACTUALIZAR CUOTAS PAGADAS\n";
+
 $sqlCuotas = "
 SELECT 
   D.DEUDIDXX,
@@ -126,10 +153,16 @@ GROUP BY D.DEUDIDXX, D.NUMCUOTX
 $stmt = $pdo->query($sqlCuotas);
 $deudasCuotas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+echo "Registros para actualizar: " . count($deudasCuotas) . "\n";
+
 foreach ($deudasCuotas as $d) {
+  print_r($d);
+
   $pagadas = (int) $d['PAGADAS'];
   $numcuot = (int) $d['NUMCUOTX'];
   $estado = ($pagadas >= $numcuot) ? 'PAGADO' : 'ACTIVO';
+
+  echo "Pagadas: $pagadas / Total: $numcuot => Estado: $estado\n";
 
   $upd = $pdo->prepare("
     UPDATE DEUDASIX
@@ -147,6 +180,8 @@ foreach ($deudasCuotas as $d) {
     ':estado' => $estado,
     ':id' => $d['DEUDIDXX']
   ]);
+
+  echo "✔ Deuda actualizada\n";
 }
 
 /*
@@ -154,6 +189,8 @@ foreach ($deudasCuotas as $d) {
 3️⃣ DEUDAS SIN CUOTAS (ABONOS)
 =====================================
 */
+echo "\n[FASE 3] DEUDAS SIN CUOTAS (ABONOS)\n";
+
 $sqlAbonos = "
 SELECT 
   D.DEUDIDXX,
@@ -171,10 +208,16 @@ GROUP BY D.DEUDIDXX, D.MONDEUDX
 $stmt = $pdo->query($sqlAbonos);
 $deudasAbono = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+echo "Deudas sin cuotas: " . count($deudasAbono) . "\n";
+
 foreach ($deudasAbono as $d) {
+  print_r($d);
+
   $abonado = (float) $d['TOTAL_ABONADO'];
   $monto = (float) $d['MONDEUDX'];
   $estado = ($abonado >= $monto) ? 'PAGADO' : 'ACTIVO';
+
+  echo "Abonado: $abonado / Total: $monto => Estado: $estado\n";
 
   $upd = $pdo->prepare("
     UPDATE DEUDASIX
@@ -192,6 +235,10 @@ foreach ($deudasAbono as $d) {
     ':estado' => $estado,
     ':id' => $d['DEUDIDXX']
   ]);
+
+  echo "✔ Abono actualizado\n";
 }
 
+echo "\n=============================\n";
 echo "CRON DE DEUDAS EJECUTADO OK\n";
+echo "=============================\n";
