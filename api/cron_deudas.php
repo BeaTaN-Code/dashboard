@@ -58,9 +58,6 @@ foreach ($deudas as $d) {
     $dia = str_pad($d['FECCUOTX'], 2, '0', STR_PAD_LEFT);
     $fechaFinal = $fechaCuota->format("Y-m") . "-$dia";
 
-    if ($fechaFinal > date('Y-m-d'))
-      continue;
-
     $insert = $pdo->prepare("
       INSERT INTO FINANCIX (
         USRIDXXX,
