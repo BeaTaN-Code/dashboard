@@ -29,9 +29,9 @@ SELECT
 FROM DEUDASIX D
 LEFT JOIN FINANCIX F 
   ON F.DEUDIDXX = D.DEUDIDXX
- AND F.FINCFECX <= CURDATE()
 WHERE D.NUMCUOTX IS NOT NULL
   AND D.REGESTXX = 'ACTIVO'
+  AND F.REGESTXX = 'ACTIVO'
 GROUP BY 
   D.DEUDIDXX,
   D.USRIDXXX,
@@ -58,7 +58,7 @@ foreach ($deudas as $d) {
   echo "Fecha inicio: " . $inicio->format('Y-m-d') . "\n";
   echo "Meses transcurridos: $mesesTranscurridos\n";
 
-  $maxCuotas = min($mesesTranscurridos, (int) $d['NUMCUOTX']);
+  $maxCuotas = (int) $d['NUMCUOTX'];
   $existentes = (int) $d['EXISTENTES'];
   $faltantes = $maxCuotas - $existentes;
 
