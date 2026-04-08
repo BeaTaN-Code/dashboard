@@ -331,7 +331,7 @@ try {
             <i class="bi bi-bell"></i>
             <span class="notification-count" id="notificationCount" style="display: none;">0</span>
           </button>
-          <span style="color: var(--muted-white); font-size: 0.9rem;">
+          <span class="top-bar-date">
             <?php echo date('d/m/Y'); ?>
           </span>
 
@@ -588,7 +588,7 @@ try {
                 <div id="movBeatan" class="modal-overlay">
                   <div class="modal">
                     <div class="modal-header">
-                      <h3 class="card-title">
+                      <h3>
                         <i class="bi bi-plus-circle"></i>
                         Nuevo Movimiento BeaTaN
                       </h3>
@@ -596,26 +596,32 @@ try {
                     </div>
                     <div class="modal-body">
                       <form class="transaction-form" id="beatanTransactionForm" onsubmit="addTransaction(event, 'BEATAN')">
-                        <div class="form-group">
-                          <label><i class="bi bi-tag"></i> Tipo</label>
-                          <select name="tipo" required>
-                            <option value="">Seleccionar...</option>
-                            <option value="INGRESO">Ingreso</option>
-                            <option value="GASTO">Gasto</option>
-                          </select>
+
+                        <!-- Tipo como selector visual -->
+                        <div class="form-group full-width">
+                          <label><i class="bi bi-tag"></i> Tipo *</label>
+                          <div class="type-selector">
+                            <label class="type-option">
+                              <input type="radio" name="tipo" value="INGRESO" required>
+                              <span class="type-pill income"><i class="bi bi-arrow-down-left"></i> Ingreso</span>
+                            </label>
+                            <label class="type-option">
+                              <input type="radio" name="tipo" value="GASTO">
+                              <span class="type-pill expense"><i class="bi bi-arrow-up-right"></i> Gasto</span>
+                            </label>
+                          </div>
                         </div>
+
                         <div class="form-group">
-                          <label><i class="bi bi-tag"></i> Deuda Asociada</label>
-                          <select name="deudidxx" id="beatanAddDeudidxx">
-                            <option value="">Seleccione una deuda</option>
-                          </select>
-                        </div>
-                        <div class="form-group">
-                          <label><i class="bi bi-currency-dollar"></i> Monto</label>
+                          <label><i class="bi bi-currency-dollar"></i> Monto *</label>
                           <input type="number" name="monto" step="0.01" min="0" placeholder="0.00" required>
                         </div>
                         <div class="form-group">
-                          <label><i class="bi bi-bookmark"></i> Categoria</label>
+                          <label><i class="bi bi-calendar"></i> Fecha *</label>
+                          <input type="date" name="fecha" required value="<?php echo date('Y-m-d'); ?>">
+                        </div>
+                        <div class="form-group">
+                          <label><i class="bi bi-bookmark"></i> Categoría *</label>
                           <select name="categoria" required>
                             <option value="">Seleccionar...</option>
                             <option value="Ventas">Ventas</option>
@@ -630,16 +636,18 @@ try {
                           </select>
                         </div>
                         <div class="form-group">
-                          <label><i class="bi bi-calendar"></i> Fecha</label>
-                          <input type="date" name="fecha" required value="<?php echo date('Y-m-d'); ?>">
+                          <label><i class="bi bi-link-45deg"></i> Deuda Asociada</label>
+                          <select name="deudidxx" id="beatanAddDeudidxx">
+                            <option value="">Sin deuda</option>
+                          </select>
                         </div>
                         <div class="form-group full-width">
-                          <label><i class="bi bi-text-left"></i> Descripcion</label>
-                          <input type="text" name="descripcion" placeholder="Descripcion del movimiento" maxlength="150">
+                          <label><i class="bi bi-text-left"></i> Descripción</label>
+                          <input type="text" name="descripcion" placeholder="Descripción del movimiento..." maxlength="150">
                         </div>
-                        <button type="submit" class="btn-primary">
+                        <button type="submit" class="btn-primary full-width-btn">
                           <i class="bi bi-plus-lg"></i>
-                          Agregar Movimiento
+                          Registrar Movimiento
                         </button>
                       </form>
                     </div>
@@ -704,25 +712,31 @@ try {
                 <!-- Card deudas BeaTaN -->
                 <div class="card">
                   <div class="card-header">
-                    <h3 class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                      <span><i class="bi bi-credit-card-2-front"></i> Deudas</span>
-                      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                        <select id="beatanDebtFilterEstado" onchange="loadDebts('BEATAN')" style="font-size:0.8rem;padding:4px 8px;">
-                          <option value="ACTIVO">Activas</option>
-                          <option value="PAGADO">Pagadas</option>
-                          <option value="INACTIVO">Inactivas</option>
-                        </select>
-                        <select id="beatanDebtFilterTipo" onchange="loadDebts('BEATAN')" style="font-size:0.8rem;padding:4px 8px;">
-                          <option value="">Todos</option>
-                          <option value="A FAVOR">A favor</option>
-                          <option value="EN CONTRA">En contra</option>
-                        </select>
-                        <input type="text" id="beatanDebtSearch" placeholder="Buscar..." oninput="debounceLoadDebts('BEATAN')" style="font-size:0.8rem;padding:4px 8px;min-width:100px;">
-                        <button class="btn-secondary" onclick="openAddDebtModal('BEATAN')">
-                          <i class="bi bi-plus"></i>
+                    <div class="debt-card-title">
+                      <div class="debt-card-title-left">
+                        <i class="bi bi-credit-card-2-front"></i>
+                        Deudas BeaTaN
+                      </div>
+                      <div class="debt-card-actions">
+                        <button class="btn-primary" onclick="openAddDebtModal('BEATAN')">
+                          <i class="bi bi-plus-lg"></i>
+                          Nueva
                         </button>
                       </div>
-                    </h3>
+                    </div>
+                  </div>
+                  <div class="debt-filters">
+                    <select id="beatanDebtFilterEstado" class="debt-filter-select" onchange="loadDebts('BEATAN')">
+                      <option value="ACTIVO">Activas</option>
+                      <option value="PAGADO">Pagadas</option>
+                      <option value="INACTIVO">Inactivas</option>
+                    </select>
+                    <select id="beatanDebtFilterTipo" class="debt-filter-select" onchange="loadDebts('BEATAN')">
+                      <option value="">Todos los tipos</option>
+                      <option value="A FAVOR">A favor</option>
+                      <option value="EN CONTRA">En contra</option>
+                    </select>
+                    <input type="text" id="beatanDebtSearch" class="debt-filter-input" placeholder="&#x1F50D; Buscar deuda..." oninput="debounceLoadDebts('BEATAN')">
                   </div>
                   <div class="table-container" id="beatanDebtsTable">
                     <div class="loading">
@@ -736,7 +750,7 @@ try {
               <div class="financial-sidebar">
                 <!-- Card rendimiento -->
                 <div class="card">
-                  <h3 style="text-align:center;">Rendimiento</h3>
+                  <p class="chart-card-title"><i class="bi bi-graph-up"></i> Rendimiento</p>
                   <canvas id="performanceChartBeatan"></canvas>
                 </div>
               </div>
@@ -768,7 +782,7 @@ try {
               <div id="movPersonal" class="modal-overlay">
                 <div class="modal">
                   <div class="modal-header">
-                    <h3 class="card-title">
+                    <h3>
                       <i class="bi bi-plus-circle"></i>
                       Nuevo Movimiento Personal
                     </h3>
@@ -777,26 +791,32 @@ try {
                   <div class="modal-body">
                     <form class="transaction-form" id="personalTransactionForm"
                       onsubmit="addTransaction(event, 'PERSONAL')">
-                      <div class="form-group">
-                        <label><i class="bi bi-tag"></i> Tipo</label>
-                        <select name="tipo" required>
-                          <option value="">Seleccionar...</option>
-                          <option value="INGRESO">Ingreso</option>
-                          <option value="GASTO">Gasto</option>
-                        </select>
+
+                      <!-- Tipo como selector visual -->
+                      <div class="form-group full-width">
+                        <label><i class="bi bi-tag"></i> Tipo *</label>
+                        <div class="type-selector">
+                          <label class="type-option">
+                            <input type="radio" name="tipo" value="INGRESO" required>
+                            <span class="type-pill income"><i class="bi bi-arrow-down-left"></i> Ingreso</span>
+                          </label>
+                          <label class="type-option">
+                            <input type="radio" name="tipo" value="GASTO">
+                            <span class="type-pill expense"><i class="bi bi-arrow-up-right"></i> Gasto</span>
+                          </label>
+                        </div>
                       </div>
+
                       <div class="form-group">
-                        <label><i class="bi bi-tag"></i> Deuda Asociada</label>
-                        <select name="deudidxx" id="addDeudidxx">
-                          <option value="">Seleccione una deuda</option>
-                        </select>
-                      </div>
-                      <div class="form-group">
-                        <label><i class="bi bi-currency-dollar"></i> Monto</label>
+                        <label><i class="bi bi-currency-dollar"></i> Monto *</label>
                         <input type="number" name="monto" step="0.01" min="0" placeholder="0.00" required>
                       </div>
                       <div class="form-group">
-                        <label><i class="bi bi-bookmark"></i> Categoria</label>
+                        <label><i class="bi bi-calendar"></i> Fecha *</label>
+                        <input type="date" name="fecha" required value="<?php echo date('Y-m-d'); ?>">
+                      </div>
+                      <div class="form-group">
+                        <label><i class="bi bi-bookmark"></i> Categoría *</label>
                         <select name="categoria" required>
                           <option value="">Seleccionar...</option>
                           <option value="Salario">Salario</option>
@@ -813,16 +833,18 @@ try {
                         </select>
                       </div>
                       <div class="form-group">
-                        <label><i class="bi bi-calendar"></i> Fecha</label>
-                        <input type="date" name="fecha" required value="<?php echo date('Y-m-d'); ?>">
+                        <label><i class="bi bi-link-45deg"></i> Deuda Asociada</label>
+                        <select name="deudidxx" id="addDeudidxx">
+                          <option value="">Sin deuda</option>
+                        </select>
                       </div>
                       <div class="form-group full-width">
-                        <label><i class="bi bi-text-left"></i> Descripcion</label>
-                        <input type="text" name="descripcion" placeholder="Descripcion del movimiento" maxlength="150">
+                        <label><i class="bi bi-text-left"></i> Descripción</label>
+                        <input type="text" name="descripcion" placeholder="Descripción del movimiento..." maxlength="150">
                       </div>
-                      <button type="submit" class="btn-primary">
+                      <button type="submit" class="btn-primary full-width-btn">
                         <i class="bi bi-plus-lg"></i>
-                        Agregar Movimiento
+                        Registrar Movimiento
                       </button>
                     </form>
                   </div>
@@ -889,25 +911,31 @@ try {
               <!-- Card deudas -->
               <div class="card">
                 <div class="card-header">
-                  <h3 class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                    <span><i class="bi bi-credit-card-2-front"></i> Deudas</span>
-                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                      <select id="personalDebtFilterEstado" onchange="loadDebts('PERSONAL')" style="font-size:0.8rem;padding:4px 8px;">
-                        <option value="ACTIVO">Activas</option>
-                        <option value="PAGADO">Pagadas</option>
-                        <option value="INACTIVO">Inactivas</option>
-                      </select>
-                      <select id="personalDebtFilterTipo" onchange="loadDebts('PERSONAL')" style="font-size:0.8rem;padding:4px 8px;">
-                        <option value="">Todos</option>
-                        <option value="A FAVOR">A favor</option>
-                        <option value="EN CONTRA">En contra</option>
-                      </select>
-                      <input type="text" id="personalDebtSearch" placeholder="Buscar..." oninput="debounceLoadDebts('PERSONAL')" style="font-size:0.8rem;padding:4px 8px;min-width:100px;">
-                      <button class="btn-secondary" onclick="openAddDebtModal('PERSONAL')">
-                        <i class="bi bi-plus"></i>
+                  <div class="debt-card-title">
+                    <div class="debt-card-title-left">
+                      <i class="bi bi-credit-card-2-front"></i>
+                      Mis Deudas
+                    </div>
+                    <div class="debt-card-actions">
+                      <button class="btn-primary" onclick="openAddDebtModal('PERSONAL')">
+                        <i class="bi bi-plus-lg"></i>
+                        Nueva
                       </button>
                     </div>
-                  </h3>
+                  </div>
+                </div>
+                <div class="debt-filters">
+                  <select id="personalDebtFilterEstado" class="debt-filter-select" onchange="loadDebts('PERSONAL')">
+                    <option value="ACTIVO">Activas</option>
+                    <option value="PAGADO">Pagadas</option>
+                    <option value="INACTIVO">Inactivas</option>
+                  </select>
+                  <select id="personalDebtFilterTipo" class="debt-filter-select" onchange="loadDebts('PERSONAL')">
+                    <option value="">Todos los tipos</option>
+                    <option value="A FAVOR">A favor</option>
+                    <option value="EN CONTRA">En contra</option>
+                  </select>
+                  <input type="text" id="personalDebtSearch" class="debt-filter-input" placeholder="&#x1F50D; Buscar deuda..." oninput="debounceLoadDebts('PERSONAL')">
                 </div>
                 <div class="table-container" id="personalDebtsTable">
                   <div class="loading">
@@ -920,7 +948,7 @@ try {
             <div class="financial-sidebar">
               <!-- Card rendimiento -->
               <div class="card">
-                <h3 style="text-align:center;">Rendimiento</h3>
+                <p class="chart-card-title"><i class="bi bi-graph-up"></i> Rendimiento</p>
                 <canvas id="performanceChart"></canvas>
               </div>
             </div>
@@ -1456,23 +1484,32 @@ try {
       createPerformanceChart('performanceChartBeatan', chartLabelsBeatan, chartIncomeBeatan, chartExpenseBeatan, chartBalanceBeatan, chartAccumulatedBeatan);
     }
 
-    //Valor Cuotas
-    const montoInput = document.getElementById("mondeudx") || document.querySelectorAll(".mondeudx");
-    const cuotasInput = document.getElementById("numcuotx") || document.querySelectorAll(".numcuotx");
-    const valorCuotaInput = document.getElementById("moncuotx") || document.querySelectorAll(".moncuotx");
+    // =========================================================
+    // CÁLCULO AUTOMÁTICO DE CUOTA — funciona en ambos modales
+    // =========================================================
+    function calcularCuotaEnForm(form) {
+      const montoEl  = form.querySelector('[name="mondeudx"]');
+      const cuotasEl = form.querySelector('[name="numcuotx"]');
+      const valorEl  = form.querySelector('[name="moncuotx"]');
+      if (!montoEl || !cuotasEl || !valorEl) return;
 
-    function calcularCuota() {
-      const monto = parseFloat(montoInput.value);
-      const cuotas = parseInt(cuotasInput.value);
+      const monto  = parseFloat(montoEl.value);
+      const cuotas = parseInt(cuotasEl.value);
 
       if (!isNaN(monto) && !isNaN(cuotas) && cuotas > 0) {
-        const valor = monto / cuotas;
-        valorCuotaInput.value = valor.toFixed(2);
+        valorEl.value = (monto / cuotas).toFixed(2);
       }
     }
 
-    montoInput.addEventListener("input", calcularCuota);
-    cuotasInput.addEventListener("input", calcularCuota);
+    // Adjuntar listeners a ambos formularios de deuda
+    ['addDebtForm', 'editDebtForm'].forEach(function(formId) {
+      const form = document.getElementById(formId);
+      if (!form) return;
+      ['mondeudx', 'numcuotx'].forEach(function(fieldName) {
+        var el = form.querySelector('[name="' + fieldName + '"]');
+        if (el) el.addEventListener('input', function() { calcularCuotaEnForm(form); });
+      });
+    });
   </script>
 
   <script src="js/dashboard.js"></script>
