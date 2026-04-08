@@ -78,12 +78,27 @@ try {
     SELECT * FROM FINANCIX 
     WHERE REGESTXX = 'ACTIVO' 
     AND MONTGASX < 0 
+    AND TIPGASXX = 'PERSONAL'
     AND FINCFECX BETWEEN :today AND :nextWeek
     AND USRIDXXX = :userId
     ORDER BY FINCFECX ASC
   ");
   $stmt->execute([':today' => $today, ':nextWeek' => $nextWeek, ':userId' => $user['id']]);
   $upcomingExpenses = $stmt->fetchAll();
+
+  $upcomingExpensesBeatan = [];
+  if ($user['is_admin']) {
+    $stmtB = $pdo->prepare("
+      SELECT * FROM FINANCIX 
+      WHERE REGESTXX = 'ACTIVO' 
+      AND MONTGASX < 0 
+      AND TIPGASXX = 'BEATAN'
+      AND FINCFECX BETWEEN :today AND :nextWeek
+      ORDER BY FINCFECX ASC
+    ");
+    $stmtB->execute([':today' => $today, ':nextWeek' => $nextWeek]);
+    $upcomingExpensesBeatan = $stmtB->fetchAll();
+  }
 } catch (Exception $e) {
   error_log('Upcoming expenses error: ' . $e->getMessage());
 }
@@ -99,53 +114,75 @@ if ($user['is_admin']) {
   }
 }
 
-// Obtener datos para la gráfica (últimos 6 meses)
+// Obtener datos para la gráfica Personal (últimos 6 meses)
 $chartLabels = [];
 $chartIncome = [];
 $chartExpense = [];
 $chartBalance = [];
 $chartAccumulated = [];
 
+// Obtener datos para la gráfica BeaTaN (últimos 6 meses)
+$chartLabelsBeatan = [];
+$chartIncomeBeatan = [];
+$chartExpenseBeatan = [];
+$chartBalanceBeatan = [];
+$chartAccumulatedBeatan = [];
+
 try {
+  // Query chart Personal
   $stmt = $pdo->prepare("
     SELECT 
-      mes,
-      ingresos,
-      gastos,
-      balance,
-
+      mes, ingresos, gastos, balance,
       SUM(balance) OVER (ORDER BY mes) AS acumulado
-
     FROM (
       SELECT 
         DATE_FORMAT(FINCFECX, '%Y-%m') AS mes,
-
         SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) AS ingresos,
-
         SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END) AS gastos,
-
-        (
-          SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) -
-          SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END)
-        ) AS balance
-
+        (SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) - SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END)) AS balance
       FROM FINANCIX
-      WHERE REGESTXX = 'ACTIVO'
-        AND USRIDXXX = :userId
-        AND FINCFECX >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+      WHERE REGESTXX = 'ACTIVO' AND USRIDXXX = :userId AND TIPGASXX = 'PERSONAL' AND FINCFECX >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
       GROUP BY mes
-    ) t
-    ORDER BY mes ASC;
+    ) t ORDER BY mes ASC;
   ");
   $stmt->execute([':userId' => $user['id']]);
-  $rows = $stmt->fetchAll();
-
-  foreach ($rows as $row) {
-    $chartLabels[] = date("M", strtotime($row['mes'] . "-01"));
+  foreach ($stmt->fetchAll() as $row) {
+    if (!in_array(date("M", strtotime($row['mes'] . "-01")), $chartLabels)) {
+      $chartLabels[] = date("M", strtotime($row['mes'] . "-01"));
+    }
     $chartBalance[] = (float) $row['balance'];
     $chartIncome[] = (float) $row['ingresos'];
     $chartExpense[] = (float) $row['gastos'];
     $chartAccumulated[] = (float) $row['acumulado'];
+  }
+
+  // Query chart BeaTaN (solo si es admin)
+  if ($user['is_admin']) {
+    $stmtBeatan = $pdo->prepare("
+      SELECT 
+        mes, ingresos, gastos, balance,
+        SUM(balance) OVER (ORDER BY mes) AS acumulado
+      FROM (
+        SELECT 
+          DATE_FORMAT(FINCFECX, '%Y-%m') AS mes,
+          SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) AS ingresos,
+          SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END) AS gastos,
+          (SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) - SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END)) AS balance
+        FROM FINANCIX
+        WHERE REGESTXX = 'ACTIVO' AND TIPGASXX = 'BEATAN' AND FINCFECX >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        GROUP BY mes
+      ) t ORDER BY mes ASC;
+    ");
+    $stmtBeatan->execute();
+    foreach ($stmtBeatan->fetchAll() as $row) {
+      if (!in_array(date("M", strtotime($row['mes'] . "-01")), $chartLabelsBeatan)) {
+        $chartLabelsBeatan[] = date("M", strtotime($row['mes'] . "-01"));
+      }
+      $chartBalanceBeatan[] = (float) $row['balance'];
+      $chartIncomeBeatan[] = (float) $row['ingresos'];
+      $chartExpenseBeatan[] = (float) $row['gastos'];
+      $chartAccumulatedBeatan[] = (float) $row['acumulado'];
+    }
   }
 
 } catch (Exception $e) {
@@ -204,6 +241,9 @@ try {
             <a href="#" class="nav-item" data-tab="financiero-beatan">
               <i class="bi bi-building"></i>
               <span>Financiero (BeaTaN)</span>
+              <?php if (count($upcomingExpensesBeatan) > 0): ?>
+                <span class="nav-badge warning"><?php echo count($upcomingExpensesBeatan); ?></span>
+              <?php endif; ?>
             </a>
           <?php } ?>
           <a href="#" class="nav-item active" data-tab="financiero-personal">
@@ -286,7 +326,7 @@ try {
           <i class="bi bi-grid-1x2" id="pageIcon"></i>
           <h1 id="pageTitle">Dashboard</h1>
         </div>
-        <div class="top-bar-actions">
+        <div class="top-bar-actions" style="position: relative;">
           <button class="notification-bell" id="notificationBell" onclick="toggleNotificationPanel()">
             <i class="bi bi-bell"></i>
             <span class="notification-count" id="notificationCount" style="display: none;">0</span>
@@ -294,24 +334,24 @@ try {
           <span style="color: var(--muted-white); font-size: 0.9rem;">
             <?php echo date('d/m/Y'); ?>
           </span>
-        </div>
-      </header>
 
-      <!-- Notification Panel -->
-      <div class="notification-panel" id="notificationPanel">
-        <div class="notification-panel-header">
-          <h4><i class="bi bi-bell"></i> Notificaciones</h4>
-          <button class="btn-icon" onclick="clearAllNotifications()">
-            <i class="bi bi-trash"></i>
-          </button>
-        </div>
-        <div class="notification-panel-body" id="notificationPanelBody">
-          <div class="empty-notifications">
-            <i class="bi bi-bell-slash"></i>
-            <p>No hay notificaciones</p>
+          <!-- Notification Panel (ahora anclado a actions) -->
+          <div class="notification-panel" id="notificationPanel">
+            <div class="notification-panel-header">
+              <h4><i class="bi bi-bell"></i> Notificaciones</h4>
+              <button class="btn-icon" onclick="clearAllNotifications()">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+            <div class="notification-panel-body" id="notificationPanelBody">
+              <div class="empty-notifications">
+                <i class="bi bi-bell-slash"></i>
+                <p>No hay notificaciones</p>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </header>
 
       <div class="content-area">
         <!-- TAB: Dashboard -->
@@ -545,54 +585,65 @@ try {
                 </div>
 
                 <!-- Add Transaction -->
-                <div class="card">
-                  <div class="card-header">
-                    <h3 class="card-title">
-                      <i class="bi bi-plus-circle"></i>
-                      Nuevo Movimiento
-                    </h3>
+                <div id="movBeatan" class="modal-overlay">
+                  <div class="modal">
+                    <div class="modal-header">
+                      <h3 class="card-title">
+                        <i class="bi bi-plus-circle"></i>
+                        Nuevo Movimiento BeaTaN
+                      </h3>
+                      <button class="modal-close" onclick="closeModal('movBeatan')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                      <form class="transaction-form" id="beatanTransactionForm" onsubmit="addTransaction(event, 'BEATAN')">
+                        <div class="form-group">
+                          <label><i class="bi bi-tag"></i> Tipo</label>
+                          <select name="tipo" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="INGRESO">Ingreso</option>
+                            <option value="GASTO">Gasto</option>
+                          </select>
+                        </div>
+                        <div class="form-group">
+                          <label><i class="bi bi-tag"></i> Deuda Asociada</label>
+                          <select name="deudidxx" id="beatanAddDeudidxx">
+                            <option value="">Seleccione una deuda</option>
+                          </select>
+                        </div>
+                        <div class="form-group">
+                          <label><i class="bi bi-currency-dollar"></i> Monto</label>
+                          <input type="number" name="monto" step="0.01" min="0" placeholder="0.00" required>
+                        </div>
+                        <div class="form-group">
+                          <label><i class="bi bi-bookmark"></i> Categoria</label>
+                          <select name="categoria" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="Ventas">Ventas</option>
+                            <option value="Servicios">Servicios</option>
+                            <option value="Inversiones">Inversiones</option>
+                            <option value="Salarios">Salarios</option>
+                            <option value="Marketing">Marketing</option>
+                            <option value="Infraestructura">Infraestructura</option>
+                            <option value="Operaciones">Operaciones</option>
+                            <option value="Impuestos">Impuestos</option>
+                            <option value="Otros">Otros</option>
+                          </select>
+                        </div>
+                        <div class="form-group">
+                          <label><i class="bi bi-calendar"></i> Fecha</label>
+                          <input type="date" name="fecha" required value="<?php echo date('Y-m-d'); ?>">
+                        </div>
+                        <div class="form-group full-width">
+                          <label><i class="bi bi-text-left"></i> Descripcion</label>
+                          <input type="text" name="descripcion" placeholder="Descripcion del movimiento" maxlength="150">
+                        </div>
+                        <button type="submit" class="btn-primary">
+                          <i class="bi bi-plus-lg"></i>
+                          Agregar Movimiento
+                        </button>
+                      </form>
+                    </div>
                   </div>
-                  <form class="transaction-form" id="beatanTransactionForm" onsubmit="addTransaction(event, 'BEATAN')">
-                    <div class="form-group">
-                      <label><i class="bi bi-tag"></i> Tipo</label>
-                      <select name="tipo" required>
-                        <option value="">Seleccionar...</option>
-                        <option value="INGRESO">Ingreso</option>
-                        <option value="GASTO">Gasto</option>
-                      </select>
-                    </div>
-                    <div class="form-group">
-                      <label><i class="bi bi-currency-dollar"></i> Monto</label>
-                      <input type="number" name="monto" step="0.01" min="0" placeholder="0.00" required>
-                    </div>
-                    <div class="form-group">
-                      <label><i class="bi bi-bookmark"></i> Categoria</label>
-                      <select name="categoria" required>
-                        <option value="">Seleccionar...</option>
-                        <option value="Ventas">Ventas</option>
-                        <option value="Servicios">Servicios</option>
-                        <option value="Inversiones">Inversiones</option>
-                        <option value="Salarios">Salarios</option>
-                        <option value="Marketing">Marketing</option>
-                        <option value="Infraestructura">Infraestructura</option>
-                        <option value="Operaciones">Operaciones</option>
-                        <option value="Impuestos">Impuestos</option>
-                        <option value="Otros">Otros</option>
-                      </select>
-                    </div>
-                    <div class="form-group">
-                      <label><i class="bi bi-calendar"></i> Fecha</label>
-                      <input type="date" name="fecha" required value="<?php echo date('Y-m-d'); ?>">
-                    </div>
-                    <div class="form-group full-width">
-                      <label><i class="bi bi-text-left"></i> Descripcion</label>
-                      <input type="text" name="descripcion" placeholder="Descripcion del movimiento" maxlength="150">
-                    </div>
-                    <button type="submit" class="btn-primary">
-                      <i class="bi bi-plus-lg"></i>
-                      Agregar Movimiento
-                    </button>
-                  </form>
                 </div>
 
                 <!-- Transactions Table -->
@@ -601,8 +652,11 @@ try {
                     <h3 class="card-title">
                       <i class="bi bi-list-ul"></i>
                       Movimientos
+                      <button class="btn-secondary" onclick="openBeatanModal()">
+                        <i class="bi bi-plus"></i>
+                      </button>
                     </h3>
-                    <div class="filters-bar" style="margin-bottom: 0;">
+                    <div class="filters-bar" style="margin-bottom: 0; flex-wrap: wrap; gap: 8px;">
                       <div class="filter-group">
                         <label>Tipo:</label>
                         <select id="beatanFilterTipo" onchange="loadTransactions('BEATAN')">
@@ -616,6 +670,28 @@ try {
                         <input type="month" id="beatanFilterMonth" onchange="loadTransactions('BEATAN')"
                           value="<?php echo date('Y-m'); ?>">
                       </div>
+                      <div class="filter-group">
+                        <label>Categoría:</label>
+                        <select id="beatanFilterCategoria" onchange="loadTransactions('BEATAN')">
+                          <option value="">Todas</option>
+                          <option value="Ventas">Ventas</option>
+                          <option value="Servicios">Servicios</option>
+                          <option value="Inversiones">Inversiones</option>
+                          <option value="Salarios">Salarios</option>
+                          <option value="Marketing">Marketing</option>
+                          <option value="Infraestructura">Infraestructura</option>
+                          <option value="Operaciones">Operaciones</option>
+                          <option value="Impuestos">Impuestos</option>
+                          <option value="Otros">Otros</option>
+                        </select>
+                      </div>
+                      <div class="filter-group">
+                        <label>Buscar:</label>
+                        <input type="text" id="beatanFilterSearch" placeholder="Descripción..." oninput="debounceLoadTransactions('BEATAN')" style="min-width:140px;">
+                      </div>
+                      <button class="btn-secondary" onclick="openReportModal('BEATAN')" title="Generar Reporte" style="margin-left:auto;">
+                        <i class="bi bi-file-earmark-bar-graph"></i> Reporte
+                      </button>
                     </div>
                   </div>
                   <div class="table-container" id="beatanTransactionsTable">
@@ -624,11 +700,45 @@ try {
                     </div>
                   </div>
                 </div>
+
+                <!-- Card deudas BeaTaN -->
+                <div class="card">
+                  <div class="card-header">
+                    <h3 class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                      <span><i class="bi bi-credit-card-2-front"></i> Deudas</span>
+                      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                        <select id="beatanDebtFilterEstado" onchange="loadDebts('BEATAN')" style="font-size:0.8rem;padding:4px 8px;">
+                          <option value="ACTIVO">Activas</option>
+                          <option value="PAGADO">Pagadas</option>
+                          <option value="INACTIVO">Inactivas</option>
+                        </select>
+                        <select id="beatanDebtFilterTipo" onchange="loadDebts('BEATAN')" style="font-size:0.8rem;padding:4px 8px;">
+                          <option value="">Todos</option>
+                          <option value="A FAVOR">A favor</option>
+                          <option value="EN CONTRA">En contra</option>
+                        </select>
+                        <input type="text" id="beatanDebtSearch" placeholder="Buscar..." oninput="debounceLoadDebts('BEATAN')" style="font-size:0.8rem;padding:4px 8px;min-width:100px;">
+                        <button class="btn-secondary" onclick="openAddDebtModal('BEATAN')">
+                          <i class="bi bi-plus"></i>
+                        </button>
+                      </div>
+                    </h3>
+                  </div>
+                  <div class="table-container" id="beatanDebtsTable">
+                    <div class="loading">
+                      <div class="spinner"></div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <!-- Calendar Sidebar -->
+              <!-- Calendar / Rendimiento Sidebar -->
               <div class="financial-sidebar">
-
+                <!-- Card rendimiento -->
+                <div class="card">
+                  <h3 style="text-align:center;">Rendimiento</h3>
+                  <canvas id="performanceChartBeatan"></canvas>
+                </div>
               </div>
             </div>
           </div>
@@ -729,7 +839,7 @@ try {
                       <i class="bi bi-plus"></i>
                     </button>
                   </h3>
-                  <div class="filters-bar" style="margin-bottom: 0;">
+                  <div class="filters-bar" style="margin-bottom: 0; flex-wrap: wrap; gap: 8px;">
                     <div class="filter-group">
                       <label>Tipo:</label>
                       <select id="personalFilterTipo" onchange="loadTransactions('PERSONAL')">
@@ -743,6 +853,30 @@ try {
                       <input type="month" id="personalFilterMonth" onchange="loadTransactions('PERSONAL')"
                         value="<?php echo date('Y-m'); ?>">
                     </div>
+                    <div class="filter-group">
+                      <label>Categoría:</label>
+                      <select id="personalFilterCategoria" onchange="loadTransactions('PERSONAL')">
+                        <option value="">Todas</option>
+                        <option value="Salario">Salario</option>
+                        <option value="Freelance">Freelance</option>
+                        <option value="Inversiones">Inversiones</option>
+                        <option value="Alimentacion">Alimentacion</option>
+                        <option value="Transporte">Transporte</option>
+                        <option value="Vivienda">Vivienda</option>
+                        <option value="Servicios">Servicios</option>
+                        <option value="Entretenimiento">Entretenimiento</option>
+                        <option value="Salud">Salud</option>
+                        <option value="Educacion">Educacion</option>
+                        <option value="Otros">Otros</option>
+                      </select>
+                    </div>
+                    <div class="filter-group">
+                      <label>Buscar:</label>
+                      <input type="text" id="personalFilterSearch" placeholder="Descripción..." oninput="debounceLoadTransactions('PERSONAL')" style="min-width:140px;">
+                    </div>
+                    <button class="btn-secondary" onclick="openReportModal('PERSONAL')" title="Generar Reporte" style="margin-left:auto;">
+                      <i class="bi bi-file-earmark-bar-graph"></i> Reporte
+                    </button>
                   </div>
                 </div>
                 <div class="table-container" id="personalTransactionsTable">
@@ -755,11 +889,24 @@ try {
               <!-- Card deudas -->
               <div class="card">
                 <div class="card-header">
-                  <h3 class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                  <h3 class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                     <span><i class="bi bi-credit-card-2-front"></i> Deudas</span>
-                    <button class="btn-secondary" onclick="openModal('addDebtModal')">
-                      <i class="bi bi-plus"></i>
-                    </button>
+                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                      <select id="personalDebtFilterEstado" onchange="loadDebts('PERSONAL')" style="font-size:0.8rem;padding:4px 8px;">
+                        <option value="ACTIVO">Activas</option>
+                        <option value="PAGADO">Pagadas</option>
+                        <option value="INACTIVO">Inactivas</option>
+                      </select>
+                      <select id="personalDebtFilterTipo" onchange="loadDebts('PERSONAL')" style="font-size:0.8rem;padding:4px 8px;">
+                        <option value="">Todos</option>
+                        <option value="A FAVOR">A favor</option>
+                        <option value="EN CONTRA">En contra</option>
+                      </select>
+                      <input type="text" id="personalDebtSearch" placeholder="Buscar..." oninput="debounceLoadDebts('PERSONAL')" style="font-size:0.8rem;padding:4px 8px;min-width:100px;">
+                      <button class="btn-secondary" onclick="openAddDebtModal('PERSONAL')">
+                        <i class="bi bi-plus"></i>
+                      </button>
+                    </div>
                   </h3>
                 </div>
                 <div class="table-container" id="personalDebtsTable">
@@ -861,8 +1008,8 @@ try {
         <button class="modal-close" onclick="closeModal('addDebtModal')">&times;</button>
       </div>
       <div class="modal-body">
-        <form id="addDebtForm" onsubmit="addDebt(event, 'PERSONAL')">
-
+        <form id="addDebtForm" onsubmit="addDebt(event)">
+          <input type="hidden" id="addDebtTipperxx" name="tipperxx">
           <div class="form-group">
             <label>Tipo deuda *</label>
             <select name="tipdeudx" required>
@@ -1084,10 +1231,42 @@ try {
     </div>
   </div>
 
+  <!-- Modal de Reporte Mensual -->
+  <div class="modal-overlay" id="reportModal">
+    <div class="modal" style="max-width:860px;width:95%;">
+      <div class="modal-header">
+        <h3><i class="bi bi-file-earmark-bar-graph"></i> Reporte Mensual — <span id="reportTitle"></span></h3>
+        <button class="modal-close" onclick="closeModal('reportModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="reportModalBody">
+        <!-- Controles -->
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
+          <div class="filter-group">
+            <label><i class="bi bi-calendar3"></i> Mes:</label>
+            <input type="month" id="reportMonth" value="<?php echo date('Y-m'); ?>" onchange="refreshReport()">
+          </div>
+          <input type="hidden" id="reportTipgasxx" value="PERSONAL">
+          <button class="btn-secondary" onclick="printReport()" style="margin-left:auto;">
+            <i class="bi bi-printer"></i> Imprimir
+          </button>
+          <button class="btn-secondary" onclick="exportReportCSV()">
+            <i class="bi bi-download"></i> CSV
+          </button>
+        </div>
+
+        <!-- Contenido dinámico -->
+        <div id="reportContent">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Pass PHP data to JavaScript -->
   <script>
     window.isAdmin = <?php echo $user['is_admin'] ? 'true' : 'false'; ?>;
     window.upcomingExpenses = <?php echo json_encode($upcomingExpenses); ?>;
+    window.upcomingExpensesBeatan = <?php echo json_encode($upcomingExpensesBeatan ?? []); ?>;
     window.newMessagesCount = <?php echo $newMessages ? $newMessages['count'] : 0; ?>;
 
     const chartLabels = <?php echo json_encode($chartLabels); ?>;
@@ -1095,6 +1274,12 @@ try {
     const chartExpense = <?php echo json_encode($chartExpense); ?>;
     const chartBalance = <?php echo json_encode($chartBalance); ?>;
     const chartAccumulated = <?php echo json_encode($chartAccumulated); ?>;
+
+    const chartLabelsBeatan = <?php echo json_encode($chartLabelsBeatan ?? []); ?>;
+    const chartIncomeBeatan = <?php echo json_encode($chartIncomeBeatan ?? []); ?>;
+    const chartExpenseBeatan = <?php echo json_encode($chartExpenseBeatan ?? []); ?>;
+    const chartBalanceBeatan = <?php echo json_encode($chartBalanceBeatan ?? []); ?>;
+    const chartAccumulatedBeatan = <?php echo json_encode($chartAccumulatedBeatan ?? []); ?>;
     const input = document.getElementById("editUserCelular");
 
     input.addEventListener("input", function (e) {
@@ -1179,91 +1364,97 @@ try {
       if (p === "granted") subscribeUser();
     });
 
-    const ctx = document.getElementById('performanceChart');
-
-    //Gráfica
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: chartLabels,
-        datasets: [
-          {
-            label: 'Ingresos',
-            data: chartIncome,
-            borderColor: '#22c55e',
-            backgroundColor: 'rgba(34,197,94,0.2)',
-            tension: 0.4,
-            fill: true,
-            pointRadius: 3,
-            order: 2
-          },
-          {
-            label: 'Gastos',
-            data: chartExpense,
-            borderColor: '#ef4444',
-            backgroundColor: 'rgba(239,68,68,0.2)',
-            tension: 0.4,
-            fill: true,
-            pointRadius: 3,
-            order: 2
-          },
-          {
-            label: 'Rendimiento',
-            data: chartBalance,
-            borderColor: '#bac522',
-            backgroundColor: 'rgba(197,194,34,0.15)',
-            tension: 0.4,
-            fill: false,
-            borderDash: [6, 6],   // línea discontinua
-            pointRadius: 4,
-            order: 3
-          },
-          {
-            label: 'Acumulado',
-            data: chartAccumulated,
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59,130,246,0.1)',
-            tension: 0.4,
-            fill: false,
-            borderWidth: 3,
-            pointRadius: 5,
-            order: 1
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            labels: {
-              color: '#fff'
+    function createPerformanceChart(ctxId, lLabels, lIncome, lExpense, lBalance, lAccumulated) {
+      const ctx = document.getElementById(ctxId);
+      if (!ctx) return;
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: lLabels,
+          datasets: [
+            {
+              label: 'Ingresos',
+              data: lIncome,
+              borderColor: '#22c55e',
+              backgroundColor: 'rgba(34,197,94,0.2)',
+              tension: 0.4,
+              fill: true,
+              pointRadius: 3,
+              order: 2
+            },
+            {
+              label: 'Gastos',
+              data: lExpense,
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239,68,68,0.2)',
+              tension: 0.4,
+              fill: true,
+              pointRadius: 3,
+              order: 2
+            },
+            {
+              label: 'Rendimiento',
+              data: lBalance,
+              borderColor: '#bac522',
+              backgroundColor: 'rgba(197,194,34,0.15)',
+              tension: 0.4,
+              fill: false,
+              borderDash: [6, 6],
+              pointRadius: 4,
+              order: 3
+            },
+            {
+              label: 'Acumulado',
+              data: lAccumulated,
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59,130,246,0.1)',
+              tension: 0.4,
+              fill: false,
+              borderWidth: 3,
+              pointRadius: 5,
+              order: 1
             }
-          },
-          tooltip: {
-            callbacks: {
-              label: function (context) {
-                const value = context.raw;
-                return `${context.dataset.label}: $${value.toLocaleString()}`;
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: {
+                color: '#fff'
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  const value = context.raw;
+                  return `${context.dataset.label}: $${value.toLocaleString()}`;
+                }
               }
             }
-          }
-        },
-        scales: {
-          x: {
-            ticks: { color: '#aaa' }
           },
-          y: {
-            ticks: {
-              color: '#aaa',
-              callback: function (value) {
-                return '$' + value.toLocaleString();
+          scales: {
+            x: {
+              ticks: { color: '#aaa' }
+            },
+            y: {
+              ticks: {
+                color: '#aaa',
+                callback: function (value) {
+                  return '$' + value.toLocaleString();
+                }
               }
             }
           }
         }
-      }
-    });
+      });
+    }
+
+    createPerformanceChart('performanceChart', chartLabels, chartIncome, chartExpense, chartBalance, chartAccumulated);
+    if (window.isAdmin) {
+      createPerformanceChart('performanceChartBeatan', chartLabelsBeatan, chartIncomeBeatan, chartExpenseBeatan, chartBalanceBeatan, chartAccumulatedBeatan);
+    }
 
     //Valor Cuotas
     const montoInput = document.getElementById("mondeudx") || document.querySelectorAll(".mondeudx");

@@ -29,6 +29,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   if (window.isAdmin) {
     loadDebts("BEATAN");
+    loadDeudasSelect("beatanAddDeudidxx");
   }
   loadDebts("PERSONAL");
 
@@ -247,8 +248,10 @@ function handleNotificationClick(type, id) {
     panel.classList.remove("active");
   }
 
-  if (type === "expense") {
+  if (type === "expense_personal") {
     switchTab("financiero-personal");
+  } else if (type === "expense_beatan") {
+    switchTab("financiero-beatan");
   } else if (type === "message") {
     switchTab("dashboard");
     const msgId = id.replace("message_", "");
@@ -257,25 +260,27 @@ function handleNotificationClick(type, id) {
 }
 
 function showUpcomingExpensesNotification() {
-  const expenses = window.upcomingExpenses || [];
-  if (expenses.length === 0) return;
+  const personalExpenses = window.upcomingExpenses || [];
+  const beatanExpenses = window.upcomingExpensesBeatan || [];
 
-  const urgentExpenses = expenses.filter((e) => {
-    const daysUntil =
-      (new Date(e.FINCFECX) - new Date()) / (1000 * 60 * 60 * 24);
-    return daysUntil <= 3;
+  const urgentPersonal = personalExpenses.filter((e) => {
+    return (new Date(e.FINCFECX) - new Date()) / (1000 * 60 * 60 * 24) <= 3;
   });
 
-  if (urgentExpenses.length > 0) {
-    const total = urgentExpenses.reduce(
-      (sum, e) => sum + Math.abs(parseFloat(e.MONTGASX)),
-      0
-    );
-    showToast(
-      "warning",
-      "Gastos Proximos",
-      `Tienes ${urgentExpenses.length} gasto(s) por pagar: $${formatNumber(total)}`
-    );
+  const urgentBeatan = beatanExpenses.filter((e) => {
+    return (new Date(e.FINCFECX) - new Date()) / (1000 * 60 * 60 * 24) <= 3;
+  });
+
+  if (urgentPersonal.length > 0) {
+    const total = urgentPersonal.reduce((sum, e) => sum + Math.abs(parseFloat(e.MONTGASX)), 0);
+    showToast("warning", "Gastos Personales Próximos", `Tienes ${urgentPersonal.length} gasto(s) por pagar: $${formatNumber(total)}`);
+  }
+
+  if (window.isAdmin && urgentBeatan.length > 0) {
+    const totalB = urgentBeatan.reduce((sum, e) => sum + Math.abs(parseFloat(e.MONTGASX)), 0);
+    setTimeout(() => {
+      showToast("warning", "Gastos Empresa (BeaTaN) Próximos", `Tienes ${urgentBeatan.length} gasto(s) por pagar: $${formatNumber(totalB)}`);
+    }, 1500);
   }
 }
 
@@ -572,25 +577,27 @@ async function loadTransactions(tipgasxx) {
   const tableContainer = document.getElementById(
     `${prefix === "beatan" ? "beatan" : "personal"}TransactionsTable`
   );
-  const filterTipoEl = document.getElementById(
-    `${prefix === "beatan" ? "beatan" : "personal"}FilterTipo`
-  );
-  const filterMonthEl = document.getElementById(
-    `${prefix === "beatan" ? "beatan" : "personal"}FilterMonth`
-  );
+  const filterTipoEl     = document.getElementById(`${prefix === "beatan" ? "beatan" : "personal"}FilterTipo`);
+  const filterMonthEl    = document.getElementById(`${prefix === "beatan" ? "beatan" : "personal"}FilterMonth`);
+  const filterCatEl      = document.getElementById(`${prefix === "beatan" ? "beatan" : "personal"}FilterCategoria`);
+  const filterSearchEl   = document.getElementById(`${prefix === "beatan" ? "beatan" : "personal"}FilterSearch`);
 
   if (!tableContainer) return;
 
-  const filterTipo = filterTipoEl ? filterTipoEl.value : "";
-  const filterMonth = filterMonthEl ? filterMonthEl.value : "";
+  const filterTipo     = filterTipoEl   ? filterTipoEl.value   : "";
+  const filterMonth    = filterMonthEl  ? filterMonthEl.value  : "";
+  const filterCat      = filterCatEl    ? filterCatEl.value    : "";
+  const filterSearch   = filterSearchEl ? filterSearchEl.value : "";
 
   tableContainer.innerHTML =
     '<div class="loading"><div class="spinner"></div></div>';
 
   try {
     let url = `api/transactions.php?tipgasxx=${tipgasxx}`;
-    if (filterTipo) url += `&tipo=${filterTipo}`;
-    if (filterMonth) url += `&month=${filterMonth}`;
+    if (filterTipo)   url += `&tipo=${filterTipo}`;
+    if (filterMonth)  url += `&month=${filterMonth}`;
+    if (filterCat)    url += `&categoria=${encodeURIComponent(filterCat)}`;
+    if (filterSearch) url += `&search=${encodeURIComponent(filterSearch)}`;
 
     const response = await fetch(url);
     const data = await response.json();
@@ -867,13 +874,21 @@ async function loadDebts(tipperxx) {
 
   container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
+  // Leer filtros desde la UI
+  const estado  = document.getElementById(`${prefix}DebtFilterEstado`)?.value || 'ACTIVO';
+  const tipo    = document.getElementById(`${prefix}DebtFilterTipo`)?.value   || '';
+  const search  = document.getElementById(`${prefix}DebtSearch`)?.value       || '';
+
   try {
-    let url = `api/debts.php?tipperxx=${tipperxx}`;
+    let url = `api/debts.php?tipperxx=${tipperxx}&regestxx=${encodeURIComponent(estado)}`;
+    if (tipo)   url += `&tipdeudx=${encodeURIComponent(tipo)}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+
     const response = await fetch(url);
     const data = await response.json();
 
     if (data.success) {
-      renderDebtsTable(tipperxx, data.data);
+      renderDebtsTable(tipperxx, data.data, estado);
     } else {
       container.innerHTML = `<p>Error al cargar deudas</p>`;
     }
@@ -883,7 +898,7 @@ async function loadDebts(tipperxx) {
   }
 }
 
-function renderDebtsTable(tipperxx, debts) {
+function renderDebtsTable(tipperxx, debts, estadoFiltro = 'ACTIVO') {
   const prefix = tipperxx.toLowerCase();
   const container = document.getElementById(`${prefix}DebtsTable`);
 
@@ -891,7 +906,7 @@ function renderDebtsTable(tipperxx, debts) {
     container.innerHTML = `<div class="empty-state">
                 <i class="bi bi-inbox"></i>
                 <h3>Sin deudas</h3>
-                <p>No hay Deudas registradas</p>
+                <p>No hay Deudas registradas con ese filtro</p>
             </div>`;
     return;
   }
@@ -908,6 +923,7 @@ function renderDebtsTable(tipperxx, debts) {
           <th>Pagado</th>
           <th>Restante</th>
           <th>N° Cuotas</th>
+          <th>Estado</th>
           <th>Acciones</th>
         </tr>
       </thead>
@@ -915,13 +931,20 @@ function renderDebtsTable(tipperxx, debts) {
   `;
 
   debts.forEach(d => {
-    const monto = parseFloat(d.MONDEUDX);
-    const valCuot = parseFloat(d.MONCUOTX);
+    const monto    = parseFloat(d.MONDEUDX);
+    const valCuot  = parseFloat(d.MONCUOTX);
     const abonCuot = d.MONCUOTX && d.PAGCUOTX
       ? d.MONCUOTX * d.PAGCUOTX
       : (d.ABONCUOT ?? 0);
-    const resCuot = parseFloat(d.MONDEUDX - (abonCuot));
+    const resCuot  = parseFloat(d.MONDEUDX - (abonCuot));
     const isIncome = d.TIPDEUDX;
+
+    const estadoBadge = d.REGESTXX === 'PAGADO'
+      ? 'badge-responded'
+      : (d.REGESTXX === 'INACTIVO' ? 'badge-closed' : 'badge-read');
+
+    const canEdit = d.REGESTXX === 'ACTIVO';
+
     html += `
       <tr>
         <td>${d.FECCUOTX}</td>
@@ -944,11 +967,16 @@ function renderDebtsTable(tipperxx, debts) {
         <td>${formatCurrency(abonCuot)}</td>
         <td>${formatCurrency(resCuot)}</td>
         <td>${(d.PAGCUOTX ?? 0) + "/" + (d.NUMCUOTX ?? "-") ?? "-"}</td>
+        <td><span class="badge ${estadoBadge}">${d.REGESTXX}</span></td>
         <td>
         <div class="action-buttons">
-          <button class="btn-icon" onclick="editDebt(${d.DEUDIDXX}, '${tipperxx}')" title="Editar">
-            <i class="bi bi-pencil"></i>
-          </button>
+          ${canEdit ? `
+            <button class="btn-icon" onclick="editDebt(${d.DEUDIDXX}, '${tipperxx}')" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn-icon" onclick="markDebtPaid(${d.DEUDIDXX}, '${tipperxx}')" title="Marcar Pagada" style="color:var(--success-color);">
+              <i class="bi bi-check-circle"></i>
+            </button>` : ''}
           <button class="btn-icon" onclick="deleteDebt(${d.DEUDIDXX}, '${tipperxx}')" title="Eliminar" style="color: var(--error-color);">
             <i class="bi bi-trash"></i>
           </button>
@@ -962,10 +990,11 @@ function renderDebtsTable(tipperxx, debts) {
   container.innerHTML = html;
 }
 
-async function addDebt(e, tipperxx) {
+async function addDebt(e) {
   e.preventDefault();
 
   const form = e.target;
+  const tipperxx = document.getElementById("addDebtTipperxx").value;
   const data = {
     tipperxx: tipperxx,
     tipdeudx: form.tipdeudx.value,
@@ -1070,6 +1099,317 @@ async function deleteDebt(id, tipperxx) {
   } else {
     showAlert(result.error, "error");
   }
+}
+
+/**
+ * Marcar deuda como PAGADA
+ */
+async function markDebtPaid(id, tipperxx) {
+  if (!confirm("\u00bfMarcar esta deuda como PAGADA?")) return;
+
+  try {
+    const response = await fetch("api/debts.php", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, regestxx: 'PAGADO' })
+    });
+    const result = await response.json();
+    if (result.success) {
+      showAlert("Deuda marcada como pagada", "success");
+      loadDebts(tipperxx);
+    } else {
+      showAlert(result.error || "Error al actualizar", "error");
+    }
+  } catch (err) {
+    console.error(err);
+    showAlert("Error de conexion", "error");
+  }
+}
+
+// ===============================================
+// DEBOUNCE HELPERS (para búsqueda de texto)
+// ===============================================
+let _debounceTimerTx  = null;
+let _debounceTimerDbt = null;
+
+function debounceLoadTransactions(tipgasxx) {
+  clearTimeout(_debounceTimerTx);
+  _debounceTimerTx = setTimeout(() => loadTransactions(tipgasxx), 350);
+}
+
+function debounceLoadDebts(tipperxx) {
+  clearTimeout(_debounceTimerDbt);
+  _debounceTimerDbt = setTimeout(() => loadDebts(tipperxx), 350);
+}
+
+// ===============================================
+// REPORTE MENSUAL
+// ===============================================
+let reportChartInstance = null;
+let _reportData = null;
+
+function openReportModal(tipgasxx) {
+  document.getElementById('reportTipgasxx').value = tipgasxx;
+  const month = document.getElementById(
+    tipgasxx === 'BEATAN' ? 'beatanFilterMonth' : 'personalFilterMonth'
+  )?.value || new Date().toISOString().slice(0, 7);
+  document.getElementById('reportMonth').value = month;
+
+  const label = tipgasxx === 'BEATAN' ? 'BeaTaN' : 'Personal';
+  document.getElementById('reportTitle').textContent = `${label} — ${formatMonthLabel(month)}`;
+
+  openModal('reportModal');
+  loadReport(tipgasxx, month);
+}
+
+function refreshReport() {
+  const tipgasxx = document.getElementById('reportTipgasxx').value;
+  const month    = document.getElementById('reportMonth').value;
+  const label    = tipgasxx === 'BEATAN' ? 'BeaTaN' : 'Personal';
+  document.getElementById('reportTitle').textContent = `${label} — ${formatMonthLabel(month)}`;
+  loadReport(tipgasxx, month);
+}
+
+async function loadReport(tipgasxx, month) {
+  const content = document.getElementById('reportContent');
+  content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  if (reportChartInstance) {
+    reportChartInstance.destroy();
+    reportChartInstance = null;
+  }
+
+  try {
+    const res  = await fetch(`api/report.php?tipgasxx=${tipgasxx}&month=${month}`);
+    const data = await res.json();
+
+    if (!data.success) {
+      content.innerHTML = `<div class="empty-state"><i class="bi bi-exclamation-circle"></i><h3>Error</h3><p>${data.error}</p></div>`;
+      return;
+    }
+
+    _reportData = data;
+    renderReportContent(data);
+  } catch (err) {
+    console.error(err);
+    content.innerHTML = `<div class="empty-state"><i class="bi bi-wifi-off"></i><h3>Error de conexión</h3></div>`;
+  }
+}
+
+function renderReportContent(data) {
+  const r = data.resumen;
+  const prevMonth = data.periodo.prevMonth;
+
+  const varBadge = (val, inverse = false) => {
+    if (val === null) return '<span style="color:var(--muted-white)">N/A</span>';
+    const positive = inverse ? val < 0 : val > 0;
+    const color = positive ? 'var(--success-color)' : 'var(--error-color)';
+    const icon  = val > 0  ? '&#x2191;' : '&#x2193;';
+    return `<span style="color:${color};font-weight:600;">${icon} ${Math.abs(val)}%</span>`;
+  };
+
+  // ── KPI Cards ──────────────────────────────────────────────────────────
+  let html = `
+    <div class="report-kpis">
+      <div class="report-kpi income">
+        <div class="kpi-icon"><i class="bi bi-arrow-up-circle-fill"></i></div>
+        <div class="kpi-body">
+          <span class="kpi-label">Ingresos</span>
+          <span class="kpi-value positive">${formatCurrency(r.ingresos)}</span>
+          <span class="kpi-var">${varBadge(r.varIngresos)} vs mes anterior</span>
+        </div>
+      </div>
+      <div class="report-kpi expense">
+        <div class="kpi-icon"><i class="bi bi-arrow-down-circle-fill"></i></div>
+        <div class="kpi-body">
+          <span class="kpi-label">Gastos</span>
+          <span class="kpi-value negative">${formatCurrency(r.gastos)}</span>
+          <span class="kpi-var">${varBadge(r.varGastos, true)} vs mes anterior</span>
+        </div>
+      </div>
+      <div class="report-kpi balance">
+        <div class="kpi-icon"><i class="bi bi-wallet2"></i></div>
+        <div class="kpi-body">
+          <span class="kpi-label">Balance Neto</span>
+          <span class="kpi-value ${r.balance >= 0 ? 'positive' : 'negative'}">${formatCurrency(r.balance)}</span>
+          <span class="kpi-var">${varBadge(r.varBalance)} vs mes anterior</span>
+        </div>
+      </div>
+      <div class="report-kpi movs">
+        <div class="kpi-icon"><i class="bi bi-list-check"></i></div>
+        <div class="kpi-body">
+          <span class="kpi-label">Movimientos</span>
+          <span class="kpi-value" style="color:var(--primary-cyan);">${r.movimientos}</span>
+          <span class="kpi-var">en el periodo</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // ── Gráfica por categoría ───────────────────────────────────────────────
+  html += `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0;">
+      <div class="card" style="padding:16px;">
+        <h4 style="margin-bottom:12px;font-size:0.95rem;"><i class="bi bi-bar-chart-fill"></i> Por Categoría</h4>
+        <div style="position:relative;height:200px;"><canvas id="reportCatChart"></canvas></div>
+      </div>
+      <div class="card" style="padding:16px;overflow:auto;max-height:260px;">
+        <h4 style="margin-bottom:10px;font-size:0.95rem;"><i class="bi bi-table"></i> Detalle</h4>
+        <table class="data-table" style="font-size:0.8rem;">
+          <thead><tr><th>Categoría</th><th>Ing.</th><th>Gas.</th><th>Movs.</th></tr></thead>
+          <tbody>
+            ${data.categorias.map(c => `
+              <tr>
+                <td>${escapeHtml(c.CATGASXX)}</td>
+                <td class="amount positive">${formatCurrency(c.ingresos)}</td>
+                <td class="amount negative">${formatCurrency(c.gastos)}</td>
+                <td>${c.movimientos}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  // ── Movimientos del mes ─────────────────────────────────────────────────
+  html += `
+    <div class="card" style="padding:16px;margin-bottom:16px;">
+      <h4 style="margin-bottom:10px;font-size:0.95rem;"><i class="bi bi-receipt"></i> Movimientos del Mes</h4>
+      <div style="max-height:220px;overflow:auto;">
+        <table class="data-table" style="font-size:0.8rem;">
+          <thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Monto</th></tr></thead>
+          <tbody>
+            ${data.movimientos.length === 0
+              ? '<tr><td colspan="4" style="text-align:center;color:var(--muted-white);">Sin movimientos</td></tr>'
+              : data.movimientos.map(m => {
+                  const isInc = parseFloat(m.MONTGASX) > 0;
+                  return `<tr>
+                    <td>${formatDate(m.FINCFECX)}</td>
+                    <td>${escapeHtml(m.CATGASXX)}</td>
+                    <td>${escapeHtml(m.DESGASXX || '-')}</td>
+                    <td><span class="amount ${isInc?'positive':'negative'}">${isInc?'+':''}${formatCurrency(parseFloat(m.MONTGASX))}</span></td>
+                  </tr>`;
+                }).join('')
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  // ── Deudas ─────────────────────────────────────────────────────────────
+  const dActivas = data.deudas.activas;
+  const dPagadas = data.deudas.pagadas;
+  html += `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div class="card" style="padding:16px;">
+        <h4 style="margin-bottom:10px;font-size:0.95rem;color:var(--warning-color);"><i class="bi bi-exclamation-diamond"></i> Deudas Activas (${dActivas.length})</h4>
+        ${dActivas.length === 0 ? '<p style="color:var(--muted-white);font-size:0.85rem;">Sin deudas activas</p>' : `
+          <div style="max-height:150px;overflow:auto;">
+            <table class="data-table" style="font-size:0.78rem;">
+              <thead><tr><th>Descr.</th><th>Monto</th><th>Tipo</th></tr></thead>
+              <tbody>${dActivas.map(d => `<tr>
+                <td>${escapeHtml(d.DESDEUDX)}</td>
+                <td><span class="amount ${d.TIPDEUDX==='A FAVOR'?'positive':'negative'}">${formatCurrency(d.MONDEUDX)}</span></td>
+                <td>${escapeHtml(d.TIPDEUDX)}</td>
+              </tr>`).join('')}</tbody>
+            </table>
+          </div>
+          <div style="margin-top:8px;font-size:0.82rem;">
+            <span style="color:var(--error-color);"><b>En contra:</b> ${formatCurrency(data.deudas.totalContra)}</span> &nbsp;
+            <span style="color:var(--success-color);"><b>A favor:</b> ${formatCurrency(data.deudas.totalFavor)}</span>
+          </div>
+        `}
+      </div>
+      <div class="card" style="padding:16px;">
+        <h4 style="margin-bottom:10px;font-size:0.95rem;color:var(--success-color);"><i class="bi bi-check-circle"></i> Deudas Pagadas (${dPagadas.length})</h4>
+        ${dPagadas.length === 0 ? '<p style="color:var(--muted-white);font-size:0.85rem;">Sin deudas pagadas</p>' : `
+          <div style="max-height:150px;overflow:auto;">
+            <table class="data-table" style="font-size:0.78rem;">
+              <thead><tr><th>Descr.</th><th>Monto</th><th>Tipo</th></tr></thead>
+              <tbody>${dPagadas.map(d => `<tr>
+                <td>${escapeHtml(d.DESDEUDX)}</td>
+                <td><span class="amount ${d.TIPDEUDX==='A FAVOR'?'positive':'negative'}">${formatCurrency(d.MONDEUDX)}</span></td>
+                <td>${escapeHtml(d.TIPDEUDX)}</td>
+              </tr>`).join('')}</tbody>
+            </table>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('reportContent').innerHTML = html;
+
+  // ── Crear gráfica categorías ────────────────────────────────────────────
+  const catCtx = document.getElementById('reportCatChart');
+  if (catCtx && data.categorias.length > 0) {
+    const labels  = data.categorias.map(c => c.CATGASXX);
+    const ingData = data.categorias.map(c => parseFloat(c.ingresos));
+    const gasData = data.categorias.map(c => parseFloat(c.gastos));
+
+    reportChartInstance = new Chart(catCtx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Ingresos', data: ingData, backgroundColor: 'rgba(34,197,94,0.7)', borderRadius: 4 },
+          { label: 'Gastos',   data: gasData, backgroundColor: 'rgba(239,68,68,0.7)',  borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#fff', font: { size: 11 } } },
+          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatCurrency(ctx.raw)}` } }
+        },
+        scales: {
+          x: { ticks: { color: '#aaa', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { ticks: { color: '#aaa', callback: v => '$' + Number(v).toLocaleString('es-CO') }, grid: { color: 'rgba(255,255,255,0.08)' } }
+        }
+      }
+    });
+  }
+}
+
+function printReport() {
+  window.print();
+}
+
+function exportReportCSV() {
+  if (!_reportData) return;
+  const movs = _reportData.movimientos;
+  if (!movs || movs.length === 0) {
+    showAlert('No hay movimientos para exportar', 'warning');
+    return;
+  }
+
+  const tipgasxx = document.getElementById('reportTipgasxx').value;
+  const month    = document.getElementById('reportMonth').value;
+  const r        = _reportData.resumen;
+
+  let csv  = `Reporte Mensual - ${tipgasxx} - ${month}\n`;
+  csv     += `Ingresos;${r.ingresos}\nGastos;${r.gastos}\nBalance;${r.balance}\n\n`;
+  csv     += `Fecha;Categoria;Descripcion;Monto\n`;
+
+  movs.forEach(m => {
+    const monto = parseFloat(m.MONTGASX).toFixed(2);
+    csv += `${m.FINCFECX};${m.CATGASXX};"${(m.DESGASXX || '').replace(/"/g, '""')}";${monto}\n`;
+  });
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `reporte_${tipgasxx}_${month}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function formatMonthLabel(month) {
+  const [y, m] = month.split('-');
+  const names = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  return `${names[parseInt(m, 10) - 1]} ${y}`;
 }
 
 async function loadDeudasSelect(selectId, selectedDeudidxx = null) {
@@ -1266,9 +1606,19 @@ function openModal(modalId) {
   }
 }
 
+function openAddDebtModal(tipperxx) {
+  document.getElementById("addDebtTipperxx").value = tipperxx;
+  openModal('addDebtModal');
+}
+
 function openPersonalModal() {
   openModal('movPersonal');
   loadDeudasSelect("addDeudidxx");
+}
+
+function openBeatanModal() {
+  openModal('movBeatan');
+  loadDeudasSelect("beatanAddDeudidxx");
 }
 
 function closeModal(modalId) {

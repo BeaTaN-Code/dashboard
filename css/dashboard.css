@@ -13,10 +13,10 @@
   --primary-cyan: #32B2CF;
   --primary-cyan-hover: #1a98b8;
   --muted-white: rgba(255, 255, 255, 0.65);
-  --bg-dark: #0D1015;
-  --bg-darker: #040609;
-  --bg-secondary: #11151B;
-  --bg-card: #1a1f28;
+  --bg-dark: #07090b; 
+  --bg-darker: #020304;
+  --bg-secondary: rgba(17, 21, 27, 0.5); 
+  --bg-card: rgba(26, 31, 40, 0.4);
   --border-color: rgba(255, 255, 255, 0.1);
   --success-color: #22c55e;
   --error-color: #ef4444;
@@ -34,6 +34,10 @@ body {
   font-weight: 400;
   color: #ffffff;
   background-color: var(--bg-dark);
+  background-image: 
+    radial-gradient(ellipse at top left, rgba(50, 178, 207, 0.15), transparent 50%),
+    radial-gradient(ellipse at bottom right, rgba(50, 178, 207, 0.05), transparent 50%);
+  background-attachment: fixed;
   line-height: 1.6;
 }
 
@@ -86,6 +90,8 @@ a:hover {
   border-radius: 16px;
   padding: 40px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .auth-header {
@@ -365,7 +371,9 @@ a:hover {
 /* Sidebar */
 .sidebar {
   width: 280px;
-  background: var(--bg-darker);
+  background: var(--bg-secondary);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-right: 1px solid var(--border-color);
   position: fixed;
   left: 0;
@@ -545,6 +553,8 @@ a:hover {
 
 .top-bar {
   background: var(--bg-secondary);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-color);
   padding: 20px 30px;
   display: flex;
@@ -602,12 +612,15 @@ a:hover {
 
 /* Cards */
 .card {
-  background: var(--bg-secondary);
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 25px;
   transition: all 0.3s ease;
   overflow: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
 .card:hover {
@@ -646,14 +659,17 @@ a:hover {
 }
 
 .stat-card {
-  background: var(--bg-secondary);
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 25px;
   display: flex;
   align-items: center;
   gap: 20px;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .stat-card:hover {
@@ -836,11 +852,19 @@ a:hover {
 }
 
 .balance-card {
-  background: var(--bg-secondary);
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 20px;
   text-align: center;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.balance-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
 }
 
 .balance-card h4 {
@@ -1000,11 +1024,14 @@ a:hover {
 
 .notification-panel {
   position: absolute;
-  top: 70px;
-  right: 30px;
+  top: 100%;
+  right: 0;
+  margin-top: 15px;
   width: 380px;
   max-height: 500px;
-  background: var(--bg-secondary);
+  background: rgba(7, 9, 11, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
@@ -1422,14 +1449,17 @@ a:hover {
 
 .modal {
   background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 16px;
   width: 90%;
   max-width: 500px;
   max-height: 90vh;
   overflow-y: auto;
-  transform: scale(0.9);
-  transition: transform 0.3s ease;
+  transform: scale(0.95);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
 .modal-overlay.active .modal {
@@ -1698,7 +1728,7 @@ a:hover {
   }
 
   .table-container {
-    width: 325px;
+    width: 100%;
   }
 }
 

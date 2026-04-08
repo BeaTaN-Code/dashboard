@@ -45,9 +45,11 @@ switch ($method) {
 
 function getTransactions($pdo, $userId, $isAdmin)
 {
-  $tipgasxx = $_GET['tipgasxx'] ?? '';
-  $tipo = $_GET['tipo'] ?? '';
-  $month = $_GET['month'] ?? '';
+  $tipgasxx  = $_GET['tipgasxx']  ?? '';
+  $tipo      = $_GET['tipo']      ?? '';
+  $month     = $_GET['month']     ?? '';
+  $categoria = $_GET['categoria'] ?? ''; // Filtro por categoria
+  $search    = $_GET['search']    ?? ''; // Busqueda en descripcion
 
   // Fecha actual para filtrar balances
   $today = date('Y-m-d');
@@ -82,6 +84,18 @@ function getTransactions($pdo, $userId, $isAdmin)
     if (!empty($month)) {
       $sql .= " AND DATE_FORMAT(FINCFECX, '%Y-%m') = :month";
       $params[':month'] = $month;
+    }
+
+    // Filtrar por categoria
+    if (!empty($categoria)) {
+      $sql .= " AND CATGASXX = :categoria";
+      $params[':categoria'] = $categoria;
+    }
+
+    // Busqueda de texto en descripcion
+    if (!empty($search)) {
+      $sql .= " AND DESGASXX LIKE :search";
+      $params[':search'] = '%' . $search . '%';
     }
 
     $sql .= " ORDER BY FINCFECX ASC";

@@ -48,10 +48,19 @@ function getDebts($pdo, $userId, $isAdmin)
 {
   $tipperxx = $_GET['tipperxx'] ?? ''; // BEATAN o PERSONAL
   $tipdeudx = $_GET['tipdeudx'] ?? ''; // A FAVOR / EN CONTRA
+  $regestxx = $_GET['regestxx'] ?? 'ACTIVO'; // ACTIVO / PAGADO / INACTIVO / ALL
+  $search   = $_GET['search']   ?? ''; // Busqueda por descripcion
 
   try {
-    $sql = "SELECT * FROM DEUDASIX WHERE REGESTXX = 'ACTIVO'";
+    $sql = "SELECT * FROM DEUDASIX WHERE 1=1";
     $params = [];
+
+    // Filtro por estado
+    $allowedStates = ['ACTIVO', 'PAGADO', 'INACTIVO'];
+    if (!empty($regestxx) && in_array(strtoupper($regestxx), $allowedStates)) {
+      $sql .= " AND REGESTXX = :regestxx";
+      $params[':regestxx'] = strtoupper($regestxx);
+    }
 
     // Solo ver propias si no es admin o no es BEATAN
     if ($tipperxx !== 'BEATAN' || !$isAdmin) {
@@ -69,7 +78,13 @@ function getDebts($pdo, $userId, $isAdmin)
       $params[':tipdeudx'] = $tipdeudx;
     }
 
-    $sql .= " ORDER BY DEUDIDXX DESC";
+    // Busqueda de texto en descripcion
+    if (!empty($search)) {
+      $sql .= " AND DESDEUDX LIKE :search";
+      $params[':search'] = '%' . $search . '%';
+    }
+
+    $sql .= " ORDER BY REGESTXX ASC, DEUDIDXX DESC";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -174,6 +189,31 @@ function updateDebt($pdo, $userId, $isAdmin)
     return;
   }
 
+  // Modo: solo cambio de estado (ej: marcar PAGADO)
+  if (isset($input['regestxx']) && !isset($input['tipdeudx'])) {
+    $allowedStates = ['ACTIVO', 'PAGADO', 'INACTIVO'];
+    $newState = strtoupper($input['regestxx']);
+    if (!in_array($newState, $allowedStates)) {
+      http_response_code(400);
+      echo json_encode(['success' => false, 'error' => 'Estado invalido']);
+      return;
+    }
+
+    $stmt = $pdo->prepare("
+      UPDATE DEUDASIX SET
+        REGESTXX = :regestxx,
+        REGUSRMX = :userId,
+        REGFECMX = CURDATE(),
+        REGHORMX = CURTIME(),
+        REGSTAMP = NOW()
+      WHERE DEUDIDXX = :id
+    ");
+    $stmt->execute([':regestxx' => $newState, ':userId' => $userId, ':id' => $id]);
+    echo json_encode(['success' => true, 'message' => 'Estado actualizado a ' . $newState]);
+    return;
+  }
+
+  // Modo: actualización completa
   $stmt = $pdo->prepare("
     UPDATE DEUDASIX SET
       TIPDEUDX = :tipdeudx,
@@ -202,6 +242,7 @@ function updateDebt($pdo, $userId, $isAdmin)
 
   echo json_encode(['success' => true, 'message' => 'Deuda actualizada']);
 }
+
 
 /* ========================= DELETE ========================= */
 function deleteDebt($pdo, $userId, $isAdmin)

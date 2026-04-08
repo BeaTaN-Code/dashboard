@@ -35,29 +35,34 @@ $today = date('Y-m-d');
 $nextWeek = date('Y-m-d', strtotime('+7 days'));
 
 try {
-  // 1. Obtener gastos proximos (para todos los usuarios)
+  // 1. Obtener gastos proximos
   $stmt = $pdo->prepare("
-        SELECT FINCTIDX, CATGASXX, DESGASXX, MONTGASX, FINCFECX 
+        SELECT FINCTIDX, CATGASXX, DESGASXX, MONTGASX, FINCFECX, TIPGASXX 
         FROM FINANCIX 
         WHERE REGESTXX = 'ACTIVO' 
         AND MONTGASX < 0 
         AND FINCFECX BETWEEN :today AND :nextWeek
-        AND USRIDXXX = :userId
+        AND (TIPGASXX = 'PERSONAL' OR (TIPGASXX = 'BEATAN' AND :isAdmin = 1))
+        AND USRIDXXX = (CASE WHEN TIPGASXX = 'BEATAN' THEN USRIDXXX ELSE :userId END)
         ORDER BY FINCFECX ASC
-        LIMIT 10
+        LIMIT 15
     ");
-  $stmt->execute([':today' => $today, ':nextWeek' => $nextWeek, ':userId' => $userId]);
+  $stmt->execute([':today' => $today, ':nextWeek' => $nextWeek, ':userId' => $userId, ':isAdmin' => $isAdmin ? 1 : 0]);
   $upcomingExpenses = $stmt->fetchAll();
 
   foreach ($upcomingExpenses as $expense) {
     $daysUntil = (strtotime($expense['FINCFECX']) - strtotime($today)) / 86400;
     $urgency = $daysUntil <= 2 ? 'urgent' : 'warning';
+    
+    // Si es BEATAN agregamos el tag para identificarlo visualmente
+    $tituloAdicional = $expense['TIPGASXX'] === 'BEATAN' ? ' (BeaTaN)' : '';
+    $tipoNotificacion = $expense['TIPGASXX'] === 'BEATAN' ? 'expense_beatan' : 'expense_personal';
 
     $notifications[] = [
       'id' => 'expense_' . $expense['FINCTIDX'],
-      'type' => 'expense',
+      'type' => $tipoNotificacion,
       'urgency' => $urgency,
-      'title' => 'Gasto Proximo',
+      'title' => 'Gasto Proximo' . $tituloAdicional,
       'message' => htmlspecialchars($expense['CATGASXX']) . ': $' . number_format(abs($expense['MONTGASX']), 2),
       'detail' => htmlspecialchars($expense['DESGASXX'] ?? ''),
       'date' => date('d/m/Y', strtotime($expense['FINCFECX'])),
