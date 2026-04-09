@@ -84,6 +84,7 @@ $sqlFase1 = "
         D.MONCUOTX,
         D.FECCUOTX,
         D.TIPPERXX,
+        D.TIPDEUDX,
         D.REGFECXX,
         COUNT(F.FINCTIDX) AS EXISTENTES
     FROM DEUDASIX D
@@ -102,6 +103,7 @@ $sqlFase1 = "
         D.MONCUOTX,
         D.FECCUOTX,
         D.TIPPERXX,
+        D.TIPDEUDX,
         D.REGFECXX
     HAVING EXISTENTES < D.NUMCUOTX
 ";
@@ -126,7 +128,11 @@ try {
 
         // Determinar TIPGASXX según TIPPERXX de la deuda (BUG CORREGIDO: antes siempre era 'PERSONAL')
         $tipgasxx = ($d['TIPPERXX'] === 'BEATAN') ? 'BEATAN' : 'PERSONAL';
-        $catgasxx = 'DEUDA';
+
+        // Si la deuda es A FAVOR (nos deben a nosotros) → ingreso positivo
+        // Si la deuda es EN CONTRA (debemos nosotros)  → gasto negativo
+        $esFavor  = (strtoupper(trim($d['TIPDEUDX'])) === 'A FAVOR');
+        $catgasxx = $esFavor ? 'INGRESO' : 'DEUDA';
 
         for ($i = $existentes; $i < $maxCuotas; $i++) {
             $fechaCuota = clone $inicio;
@@ -193,7 +199,7 @@ try {
                 ':deuda'    => $d['DEUDIDXX'],
                 ':tipgasxx' => $tipgasxx,
                 ':catgasxx' => $catgasxx,
-                ':monto'    => (float) $d['MONCUOTX'] * -1,
+                ':monto'    => $esFavor ? abs((float) $d['MONCUOTX']) : abs((float) $d['MONCUOTX']) * -1,
                 ':desc'     => 'Cuota #' . ($i + 1) . ' — ' . $d['DESDEUDX'],
                 ':fecha'    => $fechaFinal,
             ]);
