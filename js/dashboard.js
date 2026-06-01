@@ -1394,7 +1394,7 @@ function printReport() {
   window.print();
 }
 
-function exportReportCSV() {
+async function exportReportExcel() {
   if (!_reportData) return;
   const movs = _reportData.movimientos;
   if (!movs || movs.length === 0) {
@@ -1406,20 +1406,90 @@ function exportReportCSV() {
   const month    = document.getElementById('reportMonth').value;
   const r        = _reportData.resumen;
 
-  let csv  = `Reporte Mensual - ${tipgasxx} - ${month}\n`;
-  csv     += `Ingresos;${r.ingresos}\nGastos;${r.gastos}\nBalance;${r.balance}\n\n`;
-  csv     += `Fecha;Categoria;Descripcion;Monto\n`;
+  if (typeof ExcelJS === 'undefined') {
+    showAlert('La librería ExcelJS no está cargada.', 'error');
+    return;
+  }
 
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Reporte ' + tipgasxx);
+
+  // Título
+  sheet.mergeCells('A1:D1');
+  const titleCell = sheet.getCell('A1');
+  titleCell.value = `Reporte Mensual - ${tipgasxx} - ${month}`;
+  titleCell.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF32B2CF' } };
+  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  sheet.getRow(1).height = 30;
+
+  // Resumen
+  sheet.getCell('A3').value = 'Ingresos:';
+  sheet.getCell('B3').value = parseFloat(r.ingresos);
+  sheet.getCell('A4').value = 'Gastos:';
+  sheet.getCell('B4').value = parseFloat(r.gastos);
+  sheet.getCell('A5').value = 'Balance:';
+  sheet.getCell('B5').value = parseFloat(r.balance);
+
+  // Estilos de resumen
+  ['A3','A4','A5'].forEach(cell => sheet.getCell(cell).font = { bold: true });
+  ['B3','B4','B5'].forEach(cell => sheet.getCell(cell).numFmt = '"$"#,##0.00');
+
+  // Cabeceras de tabla
+  sheet.getRow(7).values = ['Fecha', 'Categoría', 'Descripción', 'Monto'];
+  sheet.getRow(7).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  sheet.getRow(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2A3B4C' } };
+
+  // Datos
+  let rowIdx = 8;
   movs.forEach(m => {
-    const monto = parseFloat(m.MONTGASX).toFixed(2);
-    csv += `${m.FINCFECX};${m.CATGASXX};"${(m.DESGASXX || '').replace(/"/g, '""')}";${monto}\n`;
+    const row = sheet.getRow(rowIdx);
+    row.values = [
+      m.FINCFECX,
+      m.CATGASXX,
+      m.DESGASXX || '-',
+      parseFloat(m.MONTGASX)
+    ];
+    row.getCell(4).numFmt = '"$"#,##0.00';
+    
+    // Color para el monto (verde si es ingreso, rojo si es gasto)
+    const montoCell = row.getCell(4);
+    if (parseFloat(m.MONTGASX) >= 0) {
+      montoCell.font = { color: { argb: 'FF22C55E' } };
+    } else {
+      montoCell.font = { color: { argb: 'FFEF4444' } };
+    }
+    
+    rowIdx++;
   });
 
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `reporte_${tipgasxx}_${month}.csv`;
+  // Ajustar anchos de columna
+  sheet.columns = [
+    { width: 15 },
+    { width: 20 },
+    { width: 40 },
+    { width: 15 }
+  ];
+
+  // Bordes para la tabla de datos
+  for(let i=7; i<rowIdx; i++) {
+    sheet.getRow(i).eachCell(cell => {
+      cell.border = {
+        top: {style:'thin'},
+        left: {style:'thin'},
+        bottom: {style:'thin'},
+        right: {style:'thin'}
+      };
+    });
+  }
+
+  // Generar archivo
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Reporte_${tipgasxx}_${month}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }

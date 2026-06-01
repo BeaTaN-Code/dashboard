@@ -203,6 +203,7 @@ try {
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 </head>
 
 <body>
@@ -795,8 +796,15 @@ try {
                   </div>
                 </div>
 
-                <!-- Transactions Table -->
-                <div class="card">
+                <!-- Chart rendimiento (movido arriba) -->
+                <div class="card" style="margin-bottom: 22px;">
+                  <p class="chart-card-title"><i class="bi bi-graph-up"></i> Rendimiento</p>
+                  <canvas id="performanceChartBeatan"></canvas>
+                </div>
+
+                <div class="financial-tables-grid">
+                  <!-- Transactions Table -->
+                  <div class="card">
                   <div class="card-header">
                     <h3 class="card-title">
                       <i class="bi bi-list-ul"></i>
@@ -885,15 +893,7 @@ try {
                     </div>
                   </div>
                 </div>
-              </div>
-
-              <!-- Calendar / Rendimiento Sidebar -->
-              <div class="financial-sidebar">
-                <!-- Card rendimiento -->
-                <div class="card">
-                  <p class="chart-card-title"><i class="bi bi-graph-up"></i> Rendimiento</p>
-                  <canvas id="performanceChartBeatan"></canvas>
-                </div>
+                </div> <!-- fin financial-tables-grid -->
               </div>
             </div>
           </div>
@@ -992,8 +992,15 @@ try {
                 </div>
               </div>
 
-              <!-- Transactions Table -->
-              <div class="card">
+              <!-- Chart rendimiento (movido arriba) -->
+              <div class="card" style="margin-bottom: 22px;">
+                <p class="chart-card-title"><i class="bi bi-graph-up"></i> Rendimiento</p>
+                <canvas id="performanceChart"></canvas>
+              </div>
+
+              <div class="financial-tables-grid">
+                <!-- Transactions Table -->
+                <div class="card">
                 <div class="card-header">
                   <h3 class="card-title">
                     <i class="bi bi-currency-dollar"></i>
@@ -1084,14 +1091,7 @@ try {
                   </div>
                 </div>
               </div>
-            </div>
-
-            <div class="financial-sidebar">
-              <!-- Card rendimiento -->
-              <div class="card">
-                <p class="chart-card-title"><i class="bi bi-graph-up"></i> Rendimiento</p>
-                <canvas id="performanceChart"></canvas>
-              </div>
+              </div> <!-- fin financial-tables-grid -->
             </div>
           </div>
         </div>
@@ -1749,8 +1749,8 @@ try {
           <button class="btn-secondary" onclick="printReport()" style="margin-left:auto;">
             <i class="bi bi-printer"></i> Imprimir
           </button>
-          <button class="btn-secondary" onclick="exportReportCSV()">
-            <i class="bi bi-download"></i> CSV
+          <button class="btn-secondary" onclick="exportReportExcel()">
+            <i class="bi bi-file-earmark-excel"></i> Excel
           </button>
         </div>
 
