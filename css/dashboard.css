@@ -967,14 +967,15 @@ a:hover {
   width: 100%;
 }
 
-.financial-sidebar .card {
-  min-height: 280px;
-  height: auto;
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 280px;
 }
 
-.financial-sidebar canvas {
+.chart-container canvas {
   width: 100% !important;
-  height: 240px !important;
+  height: 100% !important;
 }
 
 /* ===== BALANCE CARDS ===== */

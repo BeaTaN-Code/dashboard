@@ -799,7 +799,9 @@ try {
                 <!-- Chart rendimiento (movido arriba) -->
                 <div class="card" style="margin-bottom: 22px;">
                   <p class="chart-card-title"><i class="bi bi-graph-up"></i> Rendimiento</p>
-                  <canvas id="performanceChartBeatan"></canvas>
+                  <div class="chart-container">
+                    <canvas id="performanceChartBeatan"></canvas>
+                  </div>
                 </div>
 
                 <div class="financial-tables-grid">
@@ -995,7 +997,9 @@ try {
               <!-- Chart rendimiento (movido arriba) -->
               <div class="card" style="margin-bottom: 22px;">
                 <p class="chart-card-title"><i class="bi bi-graph-up"></i> Rendimiento</p>
-                <canvas id="performanceChart"></canvas>
+                <div class="chart-container">
+                  <canvas id="performanceChart"></canvas>
+                </div>
               </div>
 
               <div class="financial-tables-grid">
