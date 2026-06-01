@@ -2346,3 +2346,432 @@ a:hover {
   clip: rect(0, 0, 0, 0);
   overflow: hidden;
 }
+
+/* ===============================================
+   CRONOGRAMA & FACTURACION ADMIN ADDITIONS
+   =============================================== */
+.invoice-item-row td input {
+  background: rgba(7, 9, 11, 0.8) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  padding: 8px 10px !important;
+}
+
+.invoice-item-row td input:focus {
+  border-color: var(--primary-cyan) !important;
+  outline: none;
+}
+
+/* Contenedor imprimible de la Factura (Modo Oscuro) */
+.invoice-print-container {
+  background: #020304 !important;
+  color: #ffffff !important;
+  padding: 40px;
+  border-radius: 8px;
+  font-family: 'Geist', sans-serif;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.invoice-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid #32B2CF;
+  padding-bottom: 20px;
+  margin-bottom: 25px;
+}
+
+.invoice-logo-section {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.invoice-logo {
+  height: 60px;
+  filter: drop-shadow(0 0 5px rgba(50, 178, 207, 0.4));
+}
+
+.invoice-company-info h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.4rem;
+  color: #32B2CF !important;
+  margin: 0;
+  letter-spacing: 1px;
+}
+
+.invoice-company-info p {
+  margin: 3px 0 0 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.invoice-number-section {
+  text-align: right;
+}
+
+.invoice-number-section h1 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2rem;
+  color: #ffffff !important;
+  margin: 0 0 10px 0;
+  letter-spacing: 2px;
+}
+
+.invoice-number-box {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 15px;
+  text-align: right;
+}
+
+.invoice-number-box .label {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.5) !important;
+  font-weight: bold;
+}
+
+.invoice-number-box .value {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #32B2CF !important;
+}
+
+.invoice-details-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+  margin-bottom: 30px;
+  text-align: left;
+}
+
+.invoice-client-details, .invoice-meta-details {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 6px;
+  padding: 18px;
+}
+
+.invoice-client-details h3, .invoice-meta-details h3 {
+  margin: 0 0 10px 0;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.9rem;
+  color: #32B2CF !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 5px;
+}
+
+.invoice-client-details p, .invoice-meta-details p {
+  margin: 5px 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.invoice-state-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.invoice-state-badge.borrador { background: rgba(255,255,255,0.1) !important; color: #fff !important; }
+.invoice-state-badge.enviada { background: rgba(59, 130, 246, 0.2) !important; color: #60a5fa !important; border: 1px solid rgba(59,130,246,0.3); }
+.invoice-state-badge.pagada { background: rgba(34, 197, 94, 0.2) !important; color: #4ade80 !important; border: 1px solid rgba(34,197,94,0.3); }
+.invoice-state-badge.anulada { background: rgba(239, 68, 68, 0.2) !important; color: #f87171 !important; border: 1px solid rgba(239,68,68,0.3); }
+
+.invoice-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 30px;
+}
+
+.invoice-items-table th, .invoice-items-table td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.9) !important;
+  text-align: left;
+}
+
+.invoice-items-table th {
+  background: rgba(255, 255, 255, 0.03) !important;
+  font-weight: bold;
+  color: #32B2CF !important;
+}
+
+.invoice-items-table td.text-right, .invoice-items-table th.text-right {
+  text-align: right;
+}
+
+.invoice-summary-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 30px;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.invoice-notes h4 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.85rem;
+  color: #32B2CF !important;
+  margin: 0 0 8px 0;
+}
+
+.invoice-notes p {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.5) !important;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.invoice-totals {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 6px;
+  padding: 15px;
+}
+
+.invoice-totals .summary-line {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.invoice-totals .total-line {
+  border-top: 2px solid #32B2CF !important;
+  padding-top: 10px;
+  margin-top: 10px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #ffffff !important;
+}
+
+.invoice-totals .total-line .val {
+  color: #32B2CF !important;
+}
+
+/* ===============================================
+   GANTT CHART & GENERAL premium visual style
+   =============================================== */
+.gantt-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+  background: rgba(10, 14, 20, 0.6);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: #fff;
+  font-size: 0.85rem;
+}
+
+.gantt-table th, .gantt-table td {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.gantt-table th {
+  background: rgba(22, 28, 38, 0.95);
+  font-family: var(--font-title);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  letter-spacing: 0.5px;
+  color: var(--primary-cyan);
+}
+
+.gantt-year-header {
+  text-align: center !important;
+  background: rgba(50, 178, 207, 0.15) !important;
+  color: #fff !important;
+}
+
+.gantt-month-header {
+  text-align: center !important;
+  font-size: 0.7rem !important;
+  font-weight: 500;
+  color: var(--muted-white) !important;
+}
+
+.gantt-task-name {
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.gantt-hito-badge {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  font-size: 0.65rem;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.gantt-date-cell {
+  color: var(--muted-white);
+  font-size: 0.78rem;
+}
+
+.gantt-cell {
+  text-align: center !important;
+  padding: 5px !important;
+  vertical-align: middle;
+  min-width: 45px;
+}
+
+.gantt-bar-cell {
+  background: rgba(34, 197, 94, 0.05);
+}
+
+.gantt-green-bar {
+  height: 18px;
+  background: linear-gradient(90deg, #22c55e, #15803d);
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+  margin: 2px 0;
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.gantt-green-bar:hover {
+  transform: scaleY(1.1);
+}
+
+.gantt-hito-cell {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.gantt-diamond {
+  color: #3b82f6;
+  font-size: 1.1rem;
+  filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.6));
+  cursor: pointer;
+  display: inline-block;
+}
+
+/* Premium updates for input fields */
+#invoiceItemsTable input {
+  background: rgba(7, 9, 11, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: var(--radius-sm);
+  color: #fff !important;
+  padding: 6px 10px !important;
+  transition: all var(--transition-fast);
+}
+
+#invoiceItemsTable input:focus {
+  border-color: var(--primary-cyan) !important;
+  box-shadow: 0 0 8px rgba(50, 178, 207, 0.25) !important;
+  background: rgba(7, 9, 11, 0.9) !important;
+}
+
+/* Glassmorphism modales design */
+#addPhaseModal .modal, #addInvoiceModal .modal, #addProjectModal .modal, #addHoursModal .modal {
+  border: 1px solid rgba(50, 178, 207, 0.25) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(50, 178, 207, 0.15) !important;
+  background: rgba(12, 17, 26, 0.96) !important;
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+}
+
+/* ===============================================
+   PREMIUM FILTER BAR STYLING
+   =============================================== */
+.filters-bar {
+  display: flex !important;
+  align-items: center;
+  gap: 15px;
+  background: rgba(17, 21, 27, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: var(--radius-md) !important;
+  padding: 12px 20px !important;
+  margin-bottom: 20px !important;
+  margin-top: 10px !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-group label {
+  font-size: 0.85rem;
+  color: var(--muted-white);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.filter-group label i {
+  color: var(--primary-cyan);
+  font-size: 0.95rem;
+}
+
+.filter-group input,
+.filter-group select {
+  padding: 8px 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: var(--radius-sm) !important;
+  background: rgba(7, 9, 11, 0.7) !important;
+  color: #ffffff !important;
+  font-size: 0.85rem !important;
+  font-family: var(--font-text) !important;
+  transition: all var(--transition-fast) !important;
+}
+
+.filter-group input:focus,
+.filter-group select:focus {
+  outline: none !important;
+  border-color: var(--primary-cyan) !important;
+  box-shadow: 0 0 8px rgba(50, 178, 207, 0.25) !important;
+  background: rgba(7, 9, 11, 0.9) !important;
+}
+
+.filter-group input::placeholder {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.filter-group select option {
+  background: #0f1318 !important;
+  color: #fff !important;
+}
+
+/* Invert default date picker icons for dark mode */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
+/* Custom column adjustments for Gantt re-structure */
+.gantt-hito-badge {
+  background: rgba(59, 130, 246, 0.15) !important;
+  color: #60a5fa !important;
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+  font-size: 0.65rem;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-right: 0 !important;
+}

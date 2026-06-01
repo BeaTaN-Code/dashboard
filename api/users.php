@@ -53,8 +53,18 @@ function getUser($pdo)
   $id = intval($_GET['id'] ?? 0);
 
   if ($id <= 0) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'ID invalido']);
+    try {
+      $stmt = $pdo->query("SELECT USRIDXXX, USRNMEXX, USRMAILX, USRCELUL, ISADMINX, REGESTXX FROM BEATUSRS ORDER BY USRNMEXX ASC");
+      $users = $stmt->fetchAll();
+      echo json_encode([
+        'success' => true,
+        'data' => $users
+      ]);
+    } catch (Exception $e) {
+      error_log('Get all users error: ' . $e->getMessage());
+      http_response_code(500);
+      echo json_encode(['success' => false, 'error' => 'Error al obtener usuarios']);
+    }
     return;
   }
 
