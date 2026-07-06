@@ -2,6 +2,44 @@
 // dashboard/config/db.php
 // Configuración de conexión a base de datos usando .env
 date_default_timezone_set('America/Bogota');
+
+// Helper para obtener cabeceras si no existe (ej. en FastCGI/CGI)
+if (!function_exists('getallheaders')) {
+  function getallheaders() {
+    $headers = [];
+    foreach ($_SERVER as $name => $value) {
+      if (substr($name, 0, 5) == 'HTTP_') {
+        $headers[str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($name, 5)))))] = $value;
+      }
+    }
+    return $headers;
+  }
+}
+
+// Configuración de CORS para peticiones de la API desde móviles u otros puertos de desarrollo
+if (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/api/') !== false) {
+  $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
+  header("Access-Control-Allow-Origin: $origin");
+  header("Access-Control-Allow-Credentials: true");
+  header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With, X-Session-ID");
+  header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+  
+  if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+  }
+}
+
+// Restauración de sesión para clientes móviles que envían X-Session-ID en cabeceras o parámetros
+$headers = array_change_key_case(getallheaders(), CASE_LOWER);
+$mobileSessionId = $headers['x-session-id'] ?? $_GET['session_id'] ?? $_POST['session_id'] ?? null;
+if ($mobileSessionId) {
+  if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+  }
+  session_id($mobileSessionId);
+  session_start();
+}
 function parse_env($path)
 {
   $env = [];
