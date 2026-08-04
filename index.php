@@ -223,6 +223,7 @@ try {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script>
     if (typeof pdfjsLib !== 'undefined') {
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -2125,6 +2126,64 @@ try {
       });
     });
   </script>
+
+  <!-- Widget de Chat con Inteligencia Artificial Financiera -->
+  <div id="aiChatToggle" class="ai-chat-toggle" onclick="toggleAiChatWindow()" title="Chat de IA Financiera">
+    <div class="ai-toggle-icon">
+      <i class="bi bi-stars"></i>
+    </div>
+    <span class="ai-toggle-label">IA Financiera</span>
+  </div>
+
+  <div id="aiChatWindow" class="ai-chat-window" style="display: none;">
+    <div class="ai-chat-header">
+      <div class="ai-header-info">
+        <div class="ai-avatar">
+          <i class="bi bi-robot"></i>
+        </div>
+        <div>
+          <h4>BeaTaN AI <span class="ai-badge-live">IA Real</span></h4>
+          <span class="ai-status-text"><i class="bi bi-record-fill text-success"></i> Conectado a tu base de datos</span>
+        </div>
+      </div>
+      <button class="ai-chat-close" onclick="toggleAiChatWindow()">&times;</button>
+    </div>
+
+    <div class="ai-chat-body" id="aiChatMessages">
+      <div class="ai-message assistant">
+        <div class="ai-msg-avatar"><i class="bi bi-robot"></i></div>
+        <div class="ai-msg-content">
+          <p>¡Hola! 👋 Soy <strong>BeaTaN AI</strong>, tu asistente de inteligencia artificial financiera.</p>
+          <p>Tengo acceso a tus movimientos y categorías en tiempo real. Puedes hacerme cualquier pregunta como:</p>
+          <ul>
+            <li><em>"¿En qué categoría he gastado más este mes?"</em></li>
+            <li><em>"¿Cuánto me gasté en servicios o mercado?"</em></li>
+            <li><em>"Dame un análisis de mi balance y consejos para ahorrar"</em></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="ai-quick-prompts">
+        <button onclick="sendQuickPrompt('¿En qué categoría he gastado más?')">📊 Mayor gasto</button>
+        <button onclick="sendQuickPrompt('Resume mi balance actual e ingresos vs gastos')">📈 Balance general</button>
+        <button onclick="sendQuickPrompt('¿Qué consejos me das para ahorrar según mis movimientos?')">💡 Consejos de ahorro</button>
+      </div>
+    </div>
+
+    <div id="aiTypingIndicator" class="ai-typing-indicator" style="display: none;">
+      <div class="ai-typing-dots">
+        <span></span><span></span><span></span>
+      </div>
+      <span style="font-size: 0.8rem; color: #aaa; margin-left: 8px;">BeaTaN AI analizando tus datos...</span>
+    </div>
+
+    <div class="ai-chat-footer">
+      <input type="text" id="aiChatInput" placeholder="Haz una pregunta a la IA..." onkeypress="handleAiChatKey(event)">
+      <button class="btn-primary ai-send-btn" onclick="sendAiChatMessage()">
+        <i class="bi bi-send-fill"></i>
+      </button>
+    </div>
+  </div>
 
   <script src="js/dashboard.js"></script>
 </body>

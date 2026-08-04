@@ -3485,4 +3485,163 @@ async function executeImportTransactions() {
   }
 }
 
+/* ==========================================================================
+   LÓGICA DEL CHAT CON INTELIGENCIA ARTIFICIAL FINANCIERA (BEATAN AI)
+   ========================================================================== */
+
+let aiChatHistory = [];
+let isAiThinking = false;
+
+/**
+ * Muestra u oculta la ventana flotante del Chat de IA.
+ */
+function toggleAiChatWindow() {
+  const windowEl = document.getElementById('aiChatWindow');
+  const toggleEl = document.getElementById('aiChatToggle');
+  if (!windowEl) return;
+
+  if (windowEl.style.display === 'none' || !windowEl.style.display) {
+    windowEl.style.display = 'flex';
+    toggleEl.style.transform = 'scale(0.9)';
+    const inputEl = document.getElementById('aiChatInput');
+    if (inputEl) inputEl.focus();
+  } else {
+    windowEl.style.display = 'none';
+    toggleEl.style.transform = 'scale(1)';
+  }
+}
+
+/**
+ * Captura la tecla Enter en el input del chat de IA.
+ */
+function handleAiChatKey(event) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    sendAiChatMessage();
+  }
+}
+
+/**
+ * Envía un mensaje prediseñado rápido al chat de IA.
+ */
+function sendQuickPrompt(promptText) {
+  const inputEl = document.getElementById('aiChatInput');
+  if (inputEl) {
+    inputEl.value = promptText;
+    sendAiChatMessage();
+  }
+}
+
+/**
+ * Envia la consulta a la API de IA Financiera y renderiza la respuesta.
+ */
+async function sendAiChatMessage() {
+  const inputEl = document.getElementById('aiChatInput');
+  const messagesContainer = document.getElementById('aiChatMessages');
+  const indicator = document.getElementById('aiTypingIndicator');
+
+  if (!inputEl || !messagesContainer || isAiThinking) return;
+
+  const userMessage = inputEl.value.trim();
+  if (!userMessage) return;
+
+  // Limpiar input
+  inputEl.value = '';
+
+  // Ocultar prompts rápidos si existen
+  const quickPrompts = messagesContainer.querySelector('.ai-quick-prompts');
+  if (quickPrompts) {
+    quickPrompts.style.display = 'none';
+  }
+
+  // Renderizar mensaje del usuario
+  appendChatMessage('user', userMessage);
+  aiChatHistory.push({ role: 'user', content: userMessage });
+
+  // Mostrar indicador de escritura ("Pensando...")
+  isAiThinking = true;
+  if (indicator) indicator.style.display = 'flex';
+  scrollAiChatToBottom();
+
+  // Determinar pestaña activa (PERSONAL o BEATAN)
+  const activeTab = document.querySelector('.nav-item.active')?.dataset?.tab || 'PERSONAL';
+  const tipgasxx = activeTab.includes('beatan') ? 'BEATAN' : 'PERSONAL';
+
+  try {
+    const res = await fetch('api/ai_chat.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: userMessage,
+        tipgasxx: tipgasxx,
+        history: aiChatHistory.slice(-6) // Enviar últimos 6 turnos para mantener contexto
+      })
+    });
+
+    const data = await res.json();
+
+    if (data.success && data.reply) {
+      appendChatMessage('assistant', data.reply);
+      aiChatHistory.push({ role: 'assistant', content: data.reply });
+    } else {
+      appendChatMessage('assistant', '⚠️ ' + (data.error || 'No pude procesar la consulta. Inténtalo de nuevo.'));
+    }
+
+  } catch (err) {
+    console.error("AI Chat fetch error:", err);
+    appendChatMessage('assistant', '❌ Ocurrió un error al conectar con el servicio de IA.');
+  } finally {
+    isAiThinking = false;
+    if (indicator) indicator.style.display = 'none';
+    scrollAiChatToBottom();
+  }
+}
+
+/**
+ * Agrega un elemento de mensaje al contenedor del chat.
+ */
+function appendChatMessage(role, content) {
+  const container = document.getElementById('aiChatMessages');
+  if (!container) return;
+
+  const msgDiv = document.createElement('div');
+  msgDiv.className = `ai-message ${role}`;
+
+  const isUser = role === 'user';
+  const iconClass = isUser ? 'bi-person-fill' : 'bi-robot';
+
+  // Renderizar markdown con marked si está disponible
+  let formattedHtml = content;
+  if (typeof marked !== 'undefined' && !isUser) {
+    try {
+      formattedHtml = marked.parse(content);
+    } catch (e) {
+      formattedHtml = escapeHtml(content).replace(/\n/g, '<br>');
+    }
+  } else {
+    formattedHtml = `<p>${escapeHtml(content).replace(/\n/g, '<br>')}</p>`;
+  }
+
+  msgDiv.innerHTML = `
+    <div class="ai-msg-avatar"><i class="bi ${iconClass}"></i></div>
+    <div class="ai-msg-content">${formattedHtml}</div>
+  `;
+
+  container.appendChild(msgDiv);
+  scrollAiChatToBottom();
+}
+
+/**
+ * Desplaza el scroll del chat hacia el final.
+ */
+function scrollAiChatToBottom() {
+  const container = document.getElementById('aiChatMessages');
+  if (container) {
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+
 
