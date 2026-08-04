@@ -3486,11 +3486,36 @@ async function executeImportTransactions() {
 }
 
 /* ==========================================================================
-   LÓGICA DEL CHAT CON INTELIGENCIA ARTIFICIAL FINANCIERA (BEATAN AI)
+   LÓGICA DEL CHAT CON INTELIGENCIA ARTIFICIAL FINANCIERA GENERATIVA REAL (BEATAN AI)
    ========================================================================== */
 
 let aiChatHistory = [];
 let isAiThinking = false;
+
+/**
+ * Permite configurar la API Key de Google Gemini en el navegador.
+ */
+function configureGeminiKey() {
+  const currentKey = localStorage.getItem('beatan_gemini_key') || '';
+  const newKey = prompt(
+    "🔑 CONFIGURA TU CLAVE DE IA GENERATIVA (Google Gemini):\n\n" +
+    "Puedes obtener tu API Key 100% GRATIS en 10 segundos en:\n" +
+    "https://aistudio.google.com/app/apikey\n\n" +
+    "Pega tu API Key a continuación:",
+    currentKey
+  );
+
+  if (newKey !== null) {
+    const trimmed = newKey.trim();
+    if (trimmed) {
+      localStorage.setItem('beatan_gemini_key', trimmed);
+      alert("✅ API Key guardada exitosamente. La Inteligencia Artificial Generativa Real está lista para usar.");
+    } else {
+      localStorage.removeItem('beatan_gemini_key');
+      alert("Se ha removido la API Key guardada.");
+    }
+  }
+}
 
 /**
  * Muestra u oculta la ventana flotante del Chat de IA.
@@ -3533,7 +3558,7 @@ function sendQuickPrompt(promptText) {
 }
 
 /**
- * Envia la consulta a la API de IA Financiera y renderiza la respuesta.
+ * Envia la consulta a la API de IA Financiera y renderiza la respuesta generativa real.
  */
 async function sendAiChatMessage() {
   const inputEl = document.getElementById('aiChatInput');
@@ -3545,27 +3570,23 @@ async function sendAiChatMessage() {
   const userMessage = inputEl.value.trim();
   if (!userMessage) return;
 
-  // Limpiar input
   inputEl.value = '';
 
-  // Ocultar prompts rápidos si existen
   const quickPrompts = messagesContainer.querySelector('.ai-quick-prompts');
   if (quickPrompts) {
     quickPrompts.style.display = 'none';
   }
 
-  // Renderizar mensaje del usuario
   appendChatMessage('user', userMessage);
-  aiChatHistory.push({ role: 'user', content: userMessage });
 
-  // Mostrar indicador de escritura ("Pensando...")
   isAiThinking = true;
   if (indicator) indicator.style.display = 'flex';
   scrollAiChatToBottom();
 
-  // Determinar pestaña activa (PERSONAL o BEATAN)
   const activeTab = document.querySelector('.nav-item.active')?.dataset?.tab || 'PERSONAL';
   const tipgasxx = activeTab.includes('beatan') ? 'BEATAN' : 'PERSONAL';
+
+  const storedApiKey = localStorage.getItem('beatan_gemini_key') || '';
 
   try {
     const res = await fetch('api/ai_chat.php', {
@@ -3576,27 +3597,97 @@ async function sendAiChatMessage() {
       body: JSON.stringify({
         message: userMessage,
         tipgasxx: tipgasxx,
-        history: aiChatHistory.slice(-6) // Enviar últimos 6 turnos para mantener contexto
+        history: aiChatHistory.slice(-8),
+        apiKey: storedApiKey
       })
     });
 
     const data = await res.json();
 
     if (data.success && data.reply) {
+      // Respuesta recibida directamente desde el backend
       appendChatMessage('assistant', data.reply);
+      aiChatHistory.push({ role: 'user', content: userMessage });
       aiChatHistory.push({ role: 'assistant', content: data.reply });
+    } else if (data.success && data.systemPrompt) {
+      // El backend preparó el universo de datos. Llamar a Gemini API directamente si hay clave o solicitarla
+      if (storedApiKey) {
+        try {
+          const directReply = await callDirectGeminiApi(data.systemPrompt, userMessage, storedApiKey);
+          appendChatMessage('assistant', directReply);
+          aiChatHistory.push({ role: 'user', content: userMessage });
+          aiChatHistory.push({ role: 'assistant', content: directReply });
+        } catch (geminiErr) {
+          console.error("Direct Gemini Error:", geminiErr);
+          appendChatMessage('assistant', `⚠️ **Error de la API Key de Gemini:** ${geminiErr.message}. Haz clic en el botón **Clave IA** arriba para verificar tu API Key.`);
+        }
+      } else {
+        const keyNotice = `⚙️ **Para activar la Inteligencia Artificial Generativa Real (Google Gemini 1.5 Flash):**\n\n` +
+          `Por favor haz clic en el botón **[ 🔑 Clave IA ]** arriba a la derecha e ingresa tu API Key gratuita.\n\n` +
+          `👉 Puedes obtener tu clave en 10 segundos gratis sin tarjeta de crédito en: **[Google AI Studio](https://aistudio.google.com/app/apikey)**`;
+        appendChatMessage('assistant', keyNotice);
+      }
     } else {
       appendChatMessage('assistant', '⚠️ ' + (data.error || 'No pude procesar la consulta. Inténtalo de nuevo.'));
     }
 
   } catch (err) {
     console.error("AI Chat fetch error:", err);
-    appendChatMessage('assistant', '❌ Ocurrió un error al conectar con el servicio de IA.');
+    appendChatMessage('assistant', '❌ Ocurrió un error al conectar con el servidor.');
   } finally {
     isAiThinking = false;
     if (indicator) indicator.style.display = 'none';
     scrollAiChatToBottom();
   }
+}
+
+/**
+ * Petición directa desde el navegador a Google Gemini REST API 1.5 Flash.
+ */
+async function callDirectGeminiApi(systemPrompt, userMessage, apiKey) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  const contents = [];
+  aiChatHistory.forEach(h => {
+    if (h.role && h.content) {
+      contents.push({
+        role: h.role === 'user' ? 'user' : 'model',
+        parts: [{ text: h.content }]
+      });
+    }
+  });
+
+  contents.push({
+    role: 'user',
+    parts: [{ text: userMessage }]
+  });
+
+  const payload = {
+    systemInstruction: {
+      parts: [{ text: systemPrompt }]
+    },
+    contents: contents,
+    generationConfig: {
+      temperature: 0.4,
+      maxOutputTokens: 1200
+    }
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const errJson = await response.json().catch(() => ({}));
+    throw new Error(errJson.error?.message || `HTTP status ${response.status}`);
+  }
+
+  const data = await response.json();
+  const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!replyText) throw new Error("El modelo generativo retornó un texto vacío.");
+  return replyText.trim();
 }
 
 /**
@@ -3612,7 +3703,6 @@ function appendChatMessage(role, content) {
   const isUser = role === 'user';
   const iconClass = isUser ? 'bi-person-fill' : 'bi-robot';
 
-  // Renderizar markdown con marked si está disponible
   let formattedHtml = content;
   if (typeof marked !== 'undefined' && !isUser) {
     try {

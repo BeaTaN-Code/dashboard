@@ -2146,7 +2146,12 @@ try {
           <span class="ai-status-text"><i class="bi bi-record-fill text-success"></i> Conectado a tu base de datos</span>
         </div>
       </div>
-      <button class="ai-chat-close" onclick="toggleAiChatWindow()">&times;</button>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button class="ai-key-btn" onclick="configureGeminiKey()" title="Configurar API Key de IA Generativa (Google Gemini)" style="background: rgba(139,92,246,0.25); border: 1px solid rgba(139,92,246,0.5); color: #e9d5ff; padding: 4px 8px; border-radius: 8px; font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+          <i class="bi bi-key-fill"></i> Clave IA
+        </button>
+        <button class="ai-chat-close" onclick="toggleAiChatWindow()">&times;</button>
+      </div>
     </div>
 
     <div class="ai-chat-body" id="aiChatMessages">
