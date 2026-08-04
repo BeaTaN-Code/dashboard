@@ -3602,7 +3602,14 @@ async function sendAiChatMessage() {
       })
     });
 
-    const data = await res.json();
+    const responseText = await res.text();
+    let data = {};
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseErr) {
+      console.error("Server response error:", responseText);
+      throw new Error(`El servidor retornó un error HTTP ${res.status}.`);
+    }
 
     if (data.success && data.reply) {
       // Respuesta recibida directamente desde el backend

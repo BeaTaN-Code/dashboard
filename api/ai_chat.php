@@ -190,6 +190,13 @@ INSTRUCCIONES DE COMPORTAMIENTO:
   echo json_encode(['success' => false, 'error' => 'Error al recopilar datos financieros: ' . $e->getMessage()]);
 }
 
+// Polyfill para compatibilidad con PHP < 8.0
+if (!function_exists('str_contains')) {
+  function str_contains($haystack, $needle) {
+    return $needle !== '' && strpos($haystack, $needle) !== false;
+  }
+}
+
 /**
  * Realiza la petición a la API de Google Gemini descubriendo dinámicamente el modelo adecuado para la API Key
  */
@@ -206,7 +213,7 @@ function callGeminiApi($systemPrompt, $chatHistory, $userMessage, $apiKey) {
     if (!empty($listJson['models']) && is_array($listJson['models'])) {
       foreach ($listJson['models'] as $m) {
         if (isset($m['supportedGenerationMethods']) && in_array('generateContent', $m['supportedGenerationMethods'])) {
-          if (str_contains($m['name'], 'flash') || str_contains($m['name'], 'pro')) {
+          if (strpos($m['name'], 'flash') !== false || strpos($m['name'], 'pro') !== false) {
             $targetModel = str_replace('models/', '', $m['name']);
             break;
           }
