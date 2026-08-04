@@ -2935,3 +2935,554 @@ async function loadGanttChart(projectId) {
   }
 }
 
+/* ==========================================================================
+   MÓDULO DE IMPORTACIÓN Y COMPARACIÓN DE EXTRACTOS BANCARIOS (PDF / IMAGEN)
+   ========================================================================== */
+
+let currentImportItems = [];
+
+/**
+ * Abre el modal de importación de extractos bancarios pre-configurando la cuenta.
+ */
+function openImportModal(accountType) {
+  const tipgasxxSelect = document.getElementById('importTipgasxx');
+  if (tipgasxxSelect) {
+    tipgasxxSelect.value = accountType || 'PERSONAL';
+  }
+
+  // Pre-llenar contraseña del PDF si el usuario tiene cédula registrada
+  const pdfPassInput = document.getElementById('importPdfPassword');
+  if (pdfPassInput && window.CURRENT_USER_ID) {
+    pdfPassInput.value = window.CURRENT_USER_ID;
+  }
+
+  resetImportModalStep1();
+  const fileInput = document.getElementById('extractFileInput');
+  if (fileInput) fileInput.value = '';
+
+  const modal = document.getElementById('importExtractModal');
+  if (modal) modal.classList.add('active');
+
+  // Inicializar eventos de Drag & Drop en la zona
+  setupExtractDropzone();
+}
+
+/**
+ * Resetea el modal al Paso 1 (Selección de archivo).
+ */
+function resetImportModalStep1() {
+  document.getElementById('importStep1').style.display = 'block';
+  document.getElementById('importStep2').style.display = 'none';
+  document.getElementById('extractLoading').style.display = 'none';
+  document.getElementById('extractDropzone').style.display = 'block';
+  document.getElementById('btnBackToStep1').style.display = 'none';
+  document.getElementById('btnConfirmImport').style.display = 'none';
+  currentImportItems = [];
+}
+
+/**
+ * Configura los eventos de drag & drop en el contenedor.
+ */
+function setupExtractDropzone() {
+  const dropzone = document.getElementById('extractDropzone');
+  if (!dropzone || dropzone.dataset.hasDropEvents) return;
+
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropzone.addEventListener(eventName, preventDefaults, false);
+  });
+
+  function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropzone.addEventListener(eventName, () => {
+      dropzone.style.borderColor = '#3b82f6';
+      dropzone.style.background = 'rgba(59, 130, 246, 0.08)';
+    }, false);
+  });
+
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropzone.addEventListener(eventName, () => {
+      dropzone.style.borderColor = 'rgba(255,255,255,0.2)';
+      dropzone.style.background = 'rgba(255,255,255,0.02)';
+    }, false);
+  });
+
+  dropzone.addEventListener('drop', (e) => {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    if (files && files.length > 0) {
+      processExtractFile(files[0]);
+    }
+  }, false);
+
+  dropzone.dataset.hasDropEvents = 'true';
+}
+
+/**
+ * Maneja la selección de archivo mediante el input.
+ */
+function handleExtractFileSelect(event) {
+  const file = event.target.files[0];
+  if (file) {
+    processExtractFile(file);
+  }
+}
+
+/**
+ * Procesa el archivo (PDF o Imagen), extrae líneas y realiza comparación con la BD.
+ */
+async function processExtractFile(file) {
+  const dropzone = document.getElementById('extractDropzone');
+  const loading = document.getElementById('extractLoading');
+  const loadingText = document.getElementById('extractLoadingText');
+  const loadingSubtext = document.getElementById('extractLoadingSubtext');
+
+  dropzone.style.display = 'none';
+  loading.style.display = 'block';
+  loadingText.innerText = "Analizando contenido del extracto...";
+  loadingSubtext.innerText = "Extrayendo transacciones (fecha, concepto, monto)...";
+
+  try {
+    let rawLines = [];
+    const fileName = file.name.toLowerCase();
+    const pdfPassword = document.getElementById('importPdfPassword')?.value || window.CURRENT_USER_ID || '';
+
+    if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
+      rawLines = await parsePdfExtract(file, pdfPassword);
+    } else {
+      rawLines = await parseImageExtract(file);
+    }
+
+    const selectedYear = document.getElementById('importYear')?.value || new Date().getFullYear();
+    const parsedTransactions = parseExtractTransactionLines(rawLines, selectedYear);
+
+    if (parsedTransactions.length === 0) {
+      throw new Error("No se detectaron movimientos válidos en el archivo subido. Asegúrate de que sea un extracto bancario legibles con fechas y montos.");
+    }
+
+    loadingText.innerText = "Comparando movimientos con la base de datos...";
+    loadingSubtext.innerText = "Verificando coincidencias por monto y fecha...";
+
+    const tipgasxx = document.getElementById('importTipgasxx')?.value || 'PERSONAL';
+    const dbTransactions = await fetchActiveDbTransactions(tipgasxx);
+
+    currentImportItems = compareWithDatabase(parsedTransactions, dbTransactions);
+    renderImportPreviewStep();
+
+  } catch (err) {
+    console.error("Error al procesar extracto:", err);
+    alert("❌ " + err.message);
+    resetImportModalStep1();
+  }
+}
+
+/**
+ * Extrae texto de un archivo PDF usando PDF.js, soportando contraseñas.
+ */
+async function parsePdfExtract(file, password) {
+  if (typeof pdfjsLib === 'undefined') {
+    throw new Error("La librería PDF.js no se cargó correctamente. Revisa tu conexión a internet.");
+  }
+
+  const arrayBuffer = await file.arrayBuffer();
+  let loadingTask = pdfjsLib.getDocument({
+    data: arrayBuffer,
+    password: password
+  });
+
+  loadingTask.onPassword = function(reason) {
+    const userPass = prompt("El PDF está protegido con contraseña. Por favor ingresa la clave (ej: tu Cédula):", password);
+    if (userPass) {
+      return userPass;
+    }
+    throw new Error("El PDF requiere contraseña para ser leído.");
+  };
+
+  const pdf = await loadingTask.promise;
+  let fullTextLines = [];
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+
+    // Mapear elementos con coordenadas
+    const items = textContent.items.map(item => ({
+      text: item.str,
+      x: item.transform[4],
+      y: item.transform[5]
+    }));
+
+    // Ordenar de arriba a abajo (Y desc) y de izquierda a derecha (X asc)
+    items.sort((a, b) => b.y - a.y || a.x - b.x);
+
+    let lines = [];
+    let currentLine = [];
+    let lastY = null;
+
+    for (const item of items) {
+      if (!item.text.trim()) continue;
+      if (lastY === null || Math.abs(item.y - lastY) < 4) {
+        currentLine.push(item.text);
+      } else {
+        lines.push(currentLine.join(' '));
+        currentLine = [item.text];
+      }
+      lastY = item.y;
+    }
+    if (currentLine.length > 0) {
+      lines.push(currentLine.join(' '));
+    }
+    fullTextLines.push(...lines);
+  }
+
+  return fullTextLines;
+}
+
+/**
+ * Realiza OCR sobre un archivo de imagen con Tesseract.js.
+ */
+async function parseImageExtract(file) {
+  if (typeof Tesseract === 'undefined') {
+    throw new Error("La librería Tesseract.js no está disponible.");
+  }
+
+  document.getElementById('extractLoadingText').innerText = "Ejecutando reconocimiento OCR en la imagen...";
+  const worker = await Tesseract.createWorker('spa');
+  const ret = await worker.recognize(file);
+  await worker.terminate();
+
+  const lines = ret.data.text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  return lines;
+}
+
+/**
+ * Parser de líneas de texto para detectar transacciones bancarias (Nu, Bancolombia, etc.).
+ */
+function parseExtractTransactionLines(rawLines, defaultYear) {
+  const parsedTransactions = [];
+  const defaultCategory = document.getElementById('importDefaultCategory')?.value || 'Varios';
+
+  const monthMap = {
+    'ene': '01', 'enero': '01',
+    'feb': '02', 'febrero': '02',
+    'mar': '03', 'marzo': '03',
+    'abr': '04', 'abril': '04',
+    'may': '05', 'mayo': '05',
+    'jun': '06', 'junio': '06',
+    'jul': '07', 'julio': '07',
+    'ago': '08', 'agosto': '08',
+    'sep': '09', 'sept': '09', 'septiembre': '09',
+    'oct': '10', 'octubre': '10',
+    'nov': '11', 'noviembre': '11',
+    'dic': '12', 'diciembre': '12'
+  };
+
+  for (let line of rawLines) {
+    line = line.trim();
+    if (!line || line.length < 5) continue;
+
+    // Omitir cabeceras comunes
+    if (/^(movimientos|fecha|concepto|descripcion|monto|balance|resumen|saldo|pagina|vistas|vigilado)/i.test(line)) {
+      continue;
+    }
+
+    let fecha = null;
+    let restOfLine = '';
+
+    // Coincidencias de fecha:
+    // 1. "10 jul" o "10 jul 2024"
+    const textDateRegex = /^(\d{1,2})\s+([a-z]{3,9})(?:\s+(\d{4}))?\s+(.*)$/i;
+    // 2. "10/07/2024" o "10-07-2024"
+    const numDateRegex = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\s+(.*)$/;
+    // 3. "2024-07-10"
+    const isoDateRegex = /^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s+(.*)$/;
+
+    if (textDateRegex.test(line)) {
+      const m = line.match(textDateRegex);
+      const day = m[1].padStart(2, '0');
+      const monStr = m[2].toLowerCase();
+      const yr = m[3] || defaultYear;
+      const mon = monthMap[monStr] || monthMap[monStr.substring(0, 3)];
+      if (mon) {
+        fecha = `${yr}-${mon}-${day}`;
+        restOfLine = m[4];
+      }
+    } else if (numDateRegex.test(line)) {
+      const m = line.match(numDateRegex);
+      const day = m[1].padStart(2, '0');
+      const mon = m[2].padStart(2, '0');
+      let yr = m[3];
+      if (yr.length === 2) yr = '20' + yr;
+      fecha = `${yr}-${mon}-${day}`;
+      restOfLine = m[4];
+    } else if (isoDateRegex.test(line)) {
+      const m = line.match(isoDateRegex);
+      fecha = `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+      restOfLine = m[4];
+    }
+
+    if (!fecha) continue;
+
+    // Extraer monto al final de la línea
+    const amountRegex = /([\+\-]?\s*\$?\s*\d[\d\.\,]*\d|\d+)\s*$/;
+    const amountMatch = restOfLine.match(amountRegex);
+    let rawAmountStr = null;
+    let desc = '';
+
+    if (amountMatch) {
+      rawAmountStr = amountMatch[0].trim();
+      desc = restOfLine.substring(0, restOfLine.lastIndexOf(rawAmountStr)).trim();
+    } else {
+      desc = restOfLine.trim();
+    }
+
+    if (!rawAmountStr) continue;
+
+    // Determinar si es GASTO o INGRESO por signo o palabra clave
+    let isNegative = false;
+    if (rawAmountStr.includes('-') || /^compra|enviaste|pago|retiro/i.test(desc)) {
+      isNegative = true;
+    } else if (rawAmountStr.includes('+') || /^recibiste|reembolso|abono|deposito|ingreso/i.test(desc)) {
+      isNegative = false;
+    }
+
+    // Formatear monto numérico de COP ($24.300,00 -> 24300.00)
+    let cleanNum = rawAmountStr.replace(/[\+\-\$\s]/g, '');
+    if (cleanNum.includes(',') && cleanNum.includes('.')) {
+      if (cleanNum.indexOf('.') < cleanNum.indexOf(',')) {
+        cleanNum = cleanNum.replace(/\./g, '').replace(',', '.');
+      } else {
+        cleanNum = cleanNum.replace(/,/g, '');
+      }
+    } else if (cleanNum.includes(',')) {
+      if (/,\d{2}$/.test(cleanNum)) {
+        cleanNum = cleanNum.replace(',', '.');
+      } else {
+        cleanNum = cleanNum.replace(',', '');
+      }
+    } else if (cleanNum.includes('.')) {
+      if (/\.\d{3}$/.test(cleanNum)) {
+        cleanNum = cleanNum.replace(/\./g, '');
+      }
+    }
+
+    let val = parseFloat(cleanNum);
+    if (isNaN(val) || val === 0) continue;
+
+    if (isNegative) val = -Math.abs(val);
+    else val = Math.abs(val);
+
+    parsedTransactions.push({
+      fecha: fecha,
+      descripcion: desc || 'Movimiento extracto',
+      monto: val,
+      tipo: val < 0 ? 'GASTO' : 'INGRESO',
+      categoria: defaultCategory
+    });
+  }
+
+  return parsedTransactions;
+}
+
+/**
+ * Consulta las transacciones activas de la BD para la cuenta seleccionada.
+ */
+async function fetchActiveDbTransactions(tipgasxx) {
+  try {
+    const res = await fetch(`api/transactions.php?tipgasxx=${encodeURIComponent(tipgasxx)}`);
+    const json = await res.json();
+    if (json.success && Array.isArray(json.data)) {
+      return json.data;
+    }
+  } catch (e) {
+    console.error("Error al obtener transacciones de la BD para comparar:", e);
+  }
+  return [];
+}
+
+/**
+ * Compara los movimientos del extracto con las transacciones de la BD basándose en fecha y monto.
+ */
+function compareWithDatabase(parsedItems, dbTransactions) {
+  return parsedItems.map(item => {
+    const parsedDate = item.fecha;
+    const parsedMonto = item.monto;
+
+    // Buscar si existe una transacción con EXACTAMENTE el mismo monto y fecha en la BD
+    const exists = dbTransactions.some(db => {
+      if (db.FINCFECX !== parsedDate) return false;
+      const dbAmount = parseFloat(db.MONTGASX);
+      return Math.abs(dbAmount - parsedMonto) < 0.01;
+    });
+
+    return {
+      ...item,
+      isDuplicate: exists,
+      selected: !exists // Marcado para importar solo si NO existe en la BD
+    };
+  });
+}
+
+/**
+ * Renderiza el Paso 2 con la tabla de comparación e indicadores.
+ */
+function renderImportPreviewStep() {
+  document.getElementById('importStep1').style.display = 'none';
+  document.getElementById('importStep2').style.display = 'block';
+  document.getElementById('btnBackToStep1').style.display = 'inline-flex';
+  document.getElementById('btnConfirmImport').style.display = 'inline-flex';
+
+  const tbody = document.getElementById('importPreviewTbody');
+  tbody.innerHTML = '';
+
+  let totalFound = currentImportItems.length;
+  let alreadyExists = 0;
+  let newToImport = 0;
+
+  currentImportItems.forEach((item, index) => {
+    if (item.isDuplicate) alreadyExists++;
+    else newToImport++;
+
+    const tr = document.createElement('tr');
+    if (item.isDuplicate) {
+      tr.style.opacity = '0.65';
+      tr.style.background = 'rgba(255,255,255,0.02)';
+    }
+
+    const absAmount = Math.abs(item.monto).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const isGasto = item.monto < 0;
+
+    tr.innerHTML = `
+      <td style="text-align: center;">
+        <input type="checkbox" class="import-row-check" data-index="${index}" ${item.selected ? 'checked' : ''} onchange="onImportRowCheckChange(${index}, this.checked)">
+      </td>
+      <td style="font-size: 0.88rem; font-weight: 500;">
+        <input type="date" value="${item.fecha}" style="background: transparent; border: 1px solid rgba(255,255,255,0.1); color: inherit; padding: 2px 4px; border-radius: 4px; font-size: 0.85rem;" onchange="currentImportItems[${index}].fecha = this.value">
+      </td>
+      <td>
+        <input type="text" value="${escapeHtml(item.descripcion)}" style="width: 100%; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: inherit; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;" onchange="currentImportItems[${index}].descripcion = this.value">
+      </td>
+      <td>
+        <input type="text" value="${escapeHtml(item.categoria)}" style="width: 110px; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: inherit; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;" onchange="currentImportItems[${index}].categoria = this.value">
+      </td>
+      <td style="text-align: right; font-weight: 600;" class="${isGasto ? 'negative' : 'positive'}">
+        ${isGasto ? '-' : '+'}$${absAmount}
+      </td>
+      <td style="text-align: center;">
+        <span class="type-pill ${isGasto ? 'expense' : 'income'}" style="font-size: 0.75rem; padding: 2px 6px;">
+          ${isGasto ? 'Gasto' : 'Ingreso'}
+        </span>
+      </td>
+      <td style="text-align: center;">
+        ${item.isDuplicate 
+          ? `<span class="badge" style="background: #4b5563; color: #e5e7eb; padding: 3px 8px; border-radius: 6px; font-size: 0.75rem;"><i class="bi bi-check-all"></i> Existe en BD</span>`
+          : `<span class="badge" style="background: #059669; color: #ffffff; padding: 3px 8px; border-radius: 6px; font-size: 0.75rem;"><i class="bi bi-plus-lg"></i> Nuevo</span>`
+        }
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('badgeTotalFound').innerText = `${totalFound} Detectados`;
+  document.getElementById('badgeAlreadyExists').innerText = `${alreadyExists} Ya Existen`;
+  document.getElementById('badgeNewToImport').innerText = `${newToImport} Pendientes`;
+
+  updateImportSelectedCount();
+}
+
+/**
+ * Maneja el cambio de estado de los checkboxes de cada fila.
+ */
+function onImportRowCheckChange(index, checked) {
+  if (currentImportItems[index]) {
+    currentImportItems[index].selected = checked;
+  }
+  updateImportSelectedCount();
+}
+
+/**
+ * Marca o desmarca todas las filas.
+ */
+function toggleSelectAllImport(checked) {
+  currentImportItems.forEach(item => {
+    item.selected = checked;
+  });
+  const checkAll = document.getElementById('checkAllImport');
+  if (checkAll) checkAll.checked = checked;
+
+  document.querySelectorAll('.import-row-check').forEach(chk => {
+    chk.checked = checked;
+  });
+  updateImportSelectedCount();
+}
+
+/**
+ * Actualiza el contador de elementos seleccionados en el botón de confirmación.
+ */
+function updateImportSelectedCount() {
+  const count = currentImportItems.filter(i => i.selected).length;
+  const el = document.getElementById('importSelectedCount');
+  if (el) el.innerText = count;
+
+  const btn = document.getElementById('btnConfirmImport');
+  if (btn) {
+    btn.disabled = (count === 0);
+  }
+}
+
+/**
+ * Envía las transacciones seleccionadas al servidor mediante inserción masiva.
+ */
+async function executeImportTransactions() {
+  const selectedItems = currentImportItems.filter(i => i.selected);
+  if (selectedItems.length === 0) {
+    alert("Selecciona al menos una transacción para importar.");
+    return;
+  }
+
+  const tipgasxx = document.getElementById('importTipgasxx')?.value || 'PERSONAL';
+  const btn = document.getElementById('btnConfirmImport');
+  btn.disabled = true;
+  btn.innerHTML = `<div class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></div> Guardando...`;
+
+  try {
+    const response = await fetch('api/transactions.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action: 'bulk_import',
+        items: selectedItems.map(item => ({
+          tipgasxx: tipgasxx,
+          monto: item.monto,
+          categoria: item.categoria,
+          descripcion: item.descripcion,
+          fecha: item.fecha,
+          tipo: item.tipo
+        }))
+      })
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      showNotification(`✅ ${data.message || 'Movimientos importados correctamente'}`);
+      closeModal('importExtractModal');
+      loadTransactions(tipgasxx);
+    } else {
+      alert("❌ Error al importar: " + (data.error || 'Error desconocido'));
+    }
+
+  } catch (err) {
+    console.error("Error importando lote:", err);
+    alert("❌ Error de comunicación con el servidor.");
+  } finally {
+    btn.disabled = false;
+    updateImportSelectedCount();
+  }
+}
+
+

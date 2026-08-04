@@ -204,6 +204,14 @@ try {
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+    window.CURRENT_USER_ID = "<?php echo htmlspecialchars($user['USRIDXXX'] ?? ''); ?>";
+  </script>
 </head>
 
 <body>
@@ -811,8 +819,11 @@ try {
                     <h3 class="card-title">
                       <i class="bi bi-list-ul"></i>
                       Movimientos
-                      <button class="btn-secondary" onclick="openBeatanModal()">
+                      <button class="btn-secondary" onclick="openBeatanModal()" title="Nuevo Movimiento">
                         <i class="bi bi-plus"></i>
+                      </button>
+                      <button class="btn-primary" onclick="openImportModal('BEATAN')" style="margin-left: 8px; font-size: 0.85rem; padding: 6px 12px;" title="Subir Extracto (PDF / Imagen)">
+                        <i class="bi bi-file-earmark-arrow-up"></i> Subir Extracto
                       </button>
                     </h3>
                     <div class="filters-bar" style="margin-bottom: 0; flex-wrap: wrap; gap: 8px;">
@@ -1009,8 +1020,11 @@ try {
                   <h3 class="card-title">
                     <i class="bi bi-currency-dollar"></i>
                     Movimientos Personales
-                    <button class="btn-secondary" onclick="openPersonalModal()">
+                    <button class="btn-secondary" onclick="openPersonalModal()" title="Nuevo Movimiento">
                       <i class="bi bi-plus"></i>
+                    </button>
+                    <button class="btn-primary" onclick="openImportModal('PERSONAL')" style="margin-left: 8px; font-size: 0.85rem; padding: 6px 12px;" title="Subir Extracto (PDF / Imagen)">
+                      <i class="bi bi-file-earmark-arrow-up"></i> Subir Extracto
                     </button>
                   </h3>
                   <div class="filters-bar" style="margin-bottom: 0; flex-wrap: wrap; gap: 8px;">
@@ -1168,6 +1182,113 @@ try {
         <button class="btn-primary"
           onclick="document.getElementById('editTransactionForm').dispatchEvent(new Event('submit'))">
           <i class="bi bi-check-lg"></i> Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Importar Extracto Bancario (PDF / Imagen) -->
+  <div class="modal-overlay" id="importExtractModal">
+    <div class="modal" style="max-width: 920px; width: 95%;">
+      <div class="modal-header">
+        <h3><i class="bi bi-file-earmark-arrow-up"></i> Importar Extracto Bancario (PDF / Imagen)</h3>
+        <button class="modal-close" onclick="closeModal('importExtractModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- PASO 1: Selección de archivo y configuración -->
+        <div id="importStep1">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+            <div class="form-group">
+              <label><i class="bi bi-wallet2"></i> Tipo de Cuenta *</label>
+              <select id="importTipgasxx" class="form-control">
+                <option value="PERSONAL">Personal</option>
+                <option value="BEATAN">BeaTaN</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label><i class="bi bi-calendar-event"></i> Año del Extracto *</label>
+              <select id="importYear" class="form-control">
+                <?php 
+                  $currentY = (int)date('Y');
+                  for ($y = $currentY; $y >= $currentY - 5; $y--) {
+                    echo "<option value=\"$y\">$y</option>";
+                  }
+                ?>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label><i class="bi bi-bookmark-star"></i> Categoría por Defecto</label>
+              <input type="text" id="importDefaultCategory" class="form-control" value="Varios" placeholder="Ej: Supermercado, Varios">
+            </div>
+
+            <div class="form-group">
+              <label><i class="bi bi-key"></i> Clave PDF (si aplica)</label>
+              <input type="password" id="importPdfPassword" class="form-control" value="<?php echo htmlspecialchars($user['USRIDXXX'] ?? ''); ?>" placeholder="Cédula o Clave">
+              <small style="font-size: 0.75rem; color: #888;">Por defecto usa tu Cédula</small>
+            </div>
+          </div>
+
+          <!-- Drag & Drop Zone -->
+          <div class="extract-dropzone" id="extractDropzone" style="border: 2px dashed rgba(255,255,255,0.2); border-radius: 12px; padding: 35px 20px; text-align: center; background: rgba(255,255,255,0.02); cursor: pointer; transition: all 0.2s ease;" onclick="document.getElementById('extractFileInput').click()">
+            <i class="bi bi-cloud-arrow-up" style="font-size: 3rem; color: #3b82f6;"></i>
+            <p style="margin-top: 10px; font-weight: 600;">Haz clic o arrastra aquí tu extracto bancario</p>
+            <p style="font-size: 0.85rem; color: #888;">Formatos soportados: PDF (Nu, Bancolombia, etc.), PNG, JPG, WebP</p>
+            <input type="file" id="extractFileInput" accept=".pdf,image/*" style="display: none;" onchange="handleExtractFileSelect(event)">
+          </div>
+
+          <!-- Loading state during OCR / PDF Parsing -->
+          <div id="extractLoading" style="display: none; text-align: center; padding: 30px 10px;">
+            <div class="spinner" style="margin: 0 auto 15px auto;"></div>
+            <h4 id="extractLoadingText">Procesando y analizando extracto...</h4>
+            <p id="extractLoadingSubtext" style="font-size: 0.85rem; color: #aaa;">Extrayendo movimientos y comparando con la base de datos</p>
+          </div>
+        </div>
+
+        <!-- PASO 2: Vista previa de comparación e inserción -->
+        <div id="importStep2" style="display: none;">
+          <div class="import-summary-bar" style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 15px;">
+            <div>
+              <span id="badgeTotalFound" class="badge" style="background: #3b82f6; color: #fff; padding: 4px 10px; border-radius: 12px; margin-right: 6px; font-size: 0.82rem;">0 Encontrados</span>
+              <span id="badgeAlreadyExists" class="badge" style="background: #6b7280; color: #fff; padding: 4px 10px; border-radius: 12px; margin-right: 6px; font-size: 0.82rem;">0 Ya Existen</span>
+              <span id="badgeNewToImport" class="badge" style="background: #10b981; color: #fff; padding: 4px 10px; border-radius: 12px; font-size: 0.82rem;">0 Pendientes</span>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button class="btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;" onclick="toggleSelectAllImport(true)">Marcar Todos</button>
+              <button class="btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;" onclick="toggleSelectAllImport(false)">Desmarcar Todos</button>
+            </div>
+          </div>
+
+          <div style="max-height: 400px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+            <table class="data-table" style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr>
+                  <th style="width: 40px; text-align: center;"><input type="checkbox" id="checkAllImport" onchange="toggleSelectAllImport(this.checked)" checked></th>
+                  <th>Fecha</th>
+                  <th>Concepto / Descripción</th>
+                  <th>Categoría</th>
+                  <th style="text-align: right;">Monto</th>
+                  <th style="text-align: center;">Tipo</th>
+                  <th style="text-align: center;">Estado</th>
+                </tr>
+              </thead>
+              <tbody id="importPreviewTbody">
+                <!-- Se llena dinámicamente -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal('importExtractModal')">Cancelar</button>
+        <button id="btnBackToStep1" class="btn-secondary" style="display: none;" onclick="resetImportModalStep1()">
+          <i class="bi bi-arrow-left"></i> Cambiar Archivo
+        </button>
+        <button id="btnConfirmImport" class="btn-primary" style="display: none;" onclick="executeImportTransactions()">
+          <i class="bi bi-check-circle"></i> Importar Seleccionados (<span id="importSelectedCount">0</span>)
         </button>
       </div>
     </div>

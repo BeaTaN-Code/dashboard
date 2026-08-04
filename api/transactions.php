@@ -156,6 +156,66 @@ function addTransaction($pdo, $userId)
 {
   $input = json_decode(file_get_contents('php://input'), true);
 
+  // Manejar importación masiva (bulk_import)
+  if (isset($input['action']) && $input['action'] === 'bulk_import' && !empty($input['items']) && is_array($input['items'])) {
+    try {
+      $pdo->beginTransaction();
+      $insertedCount = 0;
+
+      $stmt = $pdo->prepare("
+        INSERT INTO FINANCIX (USRIDXXX, DEUDIDXX, TIPGASXX, MONTGASX, CATGASXX, DESGASXX, FINCFECX, REGUSRXX, REGFECXX, REGHORXX, REGESTXX, REGSTAMP)
+        VALUES (:userId, NULL, :tipgasxx, :monto, :categoria, :descripcion, :fecha, :userId, CURDATE(), CURTIME(), 'ACTIVO', NOW())
+      ");
+
+      foreach ($input['items'] as $item) {
+        $tipgasxx = $item['tipgasxx'] ?? 'PERSONAL';
+        $monto = floatval($item['monto'] ?? 0);
+        $categoria = !empty($item['categoria']) ? $item['categoria'] : 'Varios';
+        $descripcion = trim($item['descripcion'] ?? 'Importado de extracto');
+        $fecha = $item['fecha'] ?? date('Y-m-d');
+        $tipo = $item['tipo'] ?? ($monto < 0 ? 'GASTO' : 'INGRESO');
+
+        if ($tipo === 'GASTO') {
+          $monto = -abs($monto);
+        } else {
+          $monto = abs($monto);
+        }
+
+        if ($monto == 0 || empty($fecha)) {
+          continue; // Omitir registros inválidos
+        }
+
+        $stmt->execute([
+          ':userId' => $userId,
+          ':tipgasxx' => $tipgasxx,
+          ':monto' => $monto,
+          ':categoria' => $categoria,
+          ':descripcion' => $descripcion,
+          ':fecha' => $fecha
+        ]);
+        $insertedCount++;
+      }
+
+      $pdo->commit();
+
+      echo json_encode([
+        'success' => true,
+        'message' => "Se importaron $insertedCount transacciones exitosamente",
+        'count' => $insertedCount
+      ]);
+      return;
+
+    } catch (Exception $e) {
+      if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+      }
+      error_log('Bulk import transactions error: ' . $e->getMessage());
+      http_response_code(500);
+      echo json_encode(['success' => false, 'error' => 'Error al importar transacciones en lote: ' . $e->getMessage()]);
+      return;
+    }
+  }
+
   $deudidxx = $input['deudidxx'] ?? null;
   $tipgasxx = $input['tipgasxx'] ?? '';
   $tipo = $input['tipo'] ?? '';
