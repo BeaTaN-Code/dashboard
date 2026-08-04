@@ -191,10 +191,32 @@ INSTRUCCIONES DE COMPORTAMIENTO:
 }
 
 /**
- * Realiza la petición a la API de Google Gemini (probando modelos en orden: gemini-1.5-flash, gemini-1.5-flash-latest, gemini-2.0-flash, gemini-1.5-pro)
+ * Realiza la petición a la API de Google Gemini descubriendo dinámicamente el modelo adecuado para la API Key
  */
 function callGeminiApi($systemPrompt, $chatHistory, $userMessage, $apiKey) {
-  $models = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+  $cleanKey = trim(str_replace(['"', "'"], '', $apiKey));
+  if (empty($cleanKey)) return null;
+
+  // 1. Consultar modelos dinámicamente habilitados para esta API Key
+  $targetModel = 'gemini-1.5-flash';
+  $listUrl = "https://generativelanguage.googleapis.com/v1beta/models?key=" . urlencode($cleanKey);
+  $listRaw = executeCurl($listUrl);
+  if ($listRaw) {
+    $listJson = json_decode($listRaw, true);
+    if (!empty($listJson['models']) && is_array($listJson['models'])) {
+      foreach ($listJson['models'] as $m) {
+        if (isset($m['supportedGenerationMethods']) && in_array('generateContent', $m['supportedGenerationMethods'])) {
+          if (str_contains($m['name'], 'flash') || str_contains($m['name'], 'pro')) {
+            $targetModel = str_replace('models/', '', $m['name']);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Ejecutar generación con el modelo detectado
+  $url = "https://generativelanguage.googleapis.com/v1beta/models/{$targetModel}:generateContent?key=" . urlencode($cleanKey);
 
   $contents = [];
   if (is_array($chatHistory)) {
@@ -224,31 +246,12 @@ function callGeminiApi($systemPrompt, $chatHistory, $userMessage, $apiKey) {
     ]
   ];
 
-  if (!function_exists('curl_init')) return null;
-
-  foreach ($models as $model) {
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . urlencode($apiKey);
-
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($response !== false && $httpCode >= 200 && $httpCode < 300) {
-      $json = json_decode($response, true);
-      $text = $json['candidates'][0]['content']['parts'][0]['text'] ?? '';
-      if (!empty($text)) {
-        return trim($text);
-      }
+  $res = executeCurl($url, $payload);
+  if ($res) {
+    $json = json_decode($res, true);
+    $text = $json['candidates'][0]['content']['parts'][0]['text'] ?? '';
+    if (!empty($text)) {
+      return trim($text);
     }
   }
 

@@ -3642,11 +3642,41 @@ async function sendAiChatMessage() {
 }
 
 /**
- * Petición directa desde el navegador a Google Gemini REST API (probando modelos en orden).
+ * Petición directa desde el navegador a Google Gemini REST API descubriendo el modelo dinámicamente.
  */
 async function callDirectGeminiApi(systemPrompt, userMessage, apiKey) {
-  const models = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-pro'];
-  let lastError = null;
+  const cleanKey = apiKey.trim().replace(/^["']|["']$/g, '');
+  if (!cleanKey) {
+    throw new Error("La API Key está vacía. Por favor haz clic en [ Clave IA ] e ingresa tu API Key.");
+  }
+
+  // 1. Descubrir dinámicamente los modelos activos para esta API Key
+  let targetModel = 'gemini-1.5-flash';
+  try {
+    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`);
+    const listData = await listRes.json();
+
+    if (listData.error) {
+      throw new Error(listData.error.message || "API Key no válida");
+    }
+
+    if (Array.isArray(listData.models)) {
+      const validModel = listData.models.find(m => 
+        m.supportedGenerationMethods?.includes('generateContent') &&
+        (m.name.includes('flash') || m.name.includes('pro') || m.name.includes('gemini'))
+      );
+      if (validModel) {
+        targetModel = validModel.name.replace('models/', '');
+      }
+    }
+  } catch (e) {
+    if (e.message.includes("API Key") || e.message.includes("API_KEY") || e.message.includes("valid")) {
+      throw e;
+    }
+  }
+
+  // 2. Ejecutar generación con el modelo detectado
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${encodeURIComponent(cleanKey)}`;
 
   const contents = [];
   aiChatHistory.forEach(h => {
@@ -3674,29 +3704,21 @@ async function callDirectGeminiApi(systemPrompt, userMessage, apiKey) {
     }
   };
 
-  for (const model of models) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
 
-      const data = await response.json();
-      if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
-        return data.candidates[0].content.parts[0].text.trim();
-      }
+  const data = await response.json();
 
-      if (data.error?.message) {
-        lastError = data.error.message;
-      }
-    } catch (e) {
-      lastError = e.message;
-    }
+  if (!response.ok || data.error) {
+    throw new Error(data.error?.message || `Error de la API (${response.status})`);
   }
 
-  throw new Error(lastError || "No se pudo conectar con los modelos de Gemini API.");
+  const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!replyText) throw new Error("El modelo de IA retornó una respuesta vacía.");
+  return replyText.trim();
 }
 
 /**
