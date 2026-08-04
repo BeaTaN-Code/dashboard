@@ -129,23 +129,32 @@ $chartBalanceBeatan = [];
 $chartAccumulatedBeatan = [];
 
 try {
+  // 1. Obtener saldo acumulado inicial de Personal ANTES de los últimos 6 meses
+  $stmtInitial = $pdo->prepare("
+    SELECT COALESCE(SUM(MONTGASX), 0) AS initial_balance
+    FROM FINANCIX
+    WHERE REGESTXX = 'ACTIVO' AND USRIDXXX = :userId AND TIPGASXX = 'PERSONAL' AND FINCFECX < DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+  ");
+  $stmtInitial->execute([':userId' => $user['id']]);
+  $initialBalancePersonal = (float) $stmtInitial->fetchColumn();
+
   // Query chart Personal
   $stmt = $pdo->prepare("
     SELECT 
       mes, ingresos, gastos, balance,
-      SUM(balance) OVER (ORDER BY mes) AS acumulado
+      (:initialBalance + SUM(balance) OVER (ORDER BY mes)) AS acumulado
     FROM (
       SELECT 
         DATE_FORMAT(FINCFECX, '%Y-%m') AS mes,
         SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) AS ingresos,
         SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END) AS gastos,
-        (SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) - SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END)) AS balance
+        SUM(MONTGASX) AS balance
       FROM FINANCIX
       WHERE REGESTXX = 'ACTIVO' AND USRIDXXX = :userId AND TIPGASXX = 'PERSONAL' AND FINCFECX >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
       GROUP BY mes
     ) t ORDER BY mes ASC;
   ");
-  $stmt->execute([':userId' => $user['id']]);
+  $stmt->execute([':userId' => $user['id'], ':initialBalance' => $initialBalancePersonal]);
   foreach ($stmt->fetchAll() as $row) {
     if (!in_array(date("M", strtotime($row['mes'] . "-01")), $chartLabels)) {
       $chartLabels[] = date("M", strtotime($row['mes'] . "-01"));
@@ -158,22 +167,30 @@ try {
 
   // Query chart BeaTaN (solo si es admin)
   if ($user['is_admin']) {
+    $stmtInitialBeatan = $pdo->prepare("
+      SELECT COALESCE(SUM(MONTGASX), 0) AS initial_balance
+      FROM FINANCIX
+      WHERE REGESTXX = 'ACTIVO' AND TIPGASXX = 'BEATAN' AND FINCFECX < DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+    ");
+    $stmtInitialBeatan->execute();
+    $initialBalanceBeatan = (float) $stmtInitialBeatan->fetchColumn();
+
     $stmtBeatan = $pdo->prepare("
       SELECT 
         mes, ingresos, gastos, balance,
-        SUM(balance) OVER (ORDER BY mes) AS acumulado
+        (:initialBalance + SUM(balance) OVER (ORDER BY mes)) AS acumulado
       FROM (
         SELECT 
           DATE_FORMAT(FINCFECX, '%Y-%m') AS mes,
           SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) AS ingresos,
           SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END) AS gastos,
-          (SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END) - SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END)) AS balance
+          SUM(MONTGASX) AS balance
         FROM FINANCIX
         WHERE REGESTXX = 'ACTIVO' AND TIPGASXX = 'BEATAN' AND FINCFECX >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
         GROUP BY mes
       ) t ORDER BY mes ASC;
     ");
-    $stmtBeatan->execute();
+    $stmtBeatan->execute([':initialBalance' => $initialBalanceBeatan]);
     foreach ($stmtBeatan->fetchAll() as $row) {
       if (!in_array(date("M", strtotime($row['mes'] . "-01")), $chartLabelsBeatan)) {
         $chartLabelsBeatan[] = date("M", strtotime($row['mes'] . "-01"));
