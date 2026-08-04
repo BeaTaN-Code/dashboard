@@ -7,6 +7,13 @@ date_default_timezone_set('America/Bogota');
 session_start();
 require_once __DIR__ . '/../config/db.php';
 
+// Polyfill para compatibilidad con PHP < 8.0
+if (!function_exists('str_contains')) {
+  function str_contains($haystack, $needle) {
+    return $needle !== '' && strpos($haystack, $needle) !== false;
+  }
+}
+
 $envPaths = [__DIR__ . '/../../.env', __DIR__ . '/../.env', '.env'];
 $env = [];
 foreach ($envPaths as $path) {
@@ -184,17 +191,11 @@ INSTRUCCIONES DE COMPORTAMIENTO:
     'requiresKeyPrompt' => empty($effectiveApiKey)
   ]);
 
-} catch (Exception $e) {
+} catch (Throwable $e) {
   error_log("AI Chat Exception: " . $e->getMessage());
   http_response_code(500);
   echo json_encode(['success' => false, 'error' => 'Error al recopilar datos financieros: ' . $e->getMessage()]);
-}
-
-// Polyfill para compatibilidad con PHP < 8.0
-if (!function_exists('str_contains')) {
-  function str_contains($haystack, $needle) {
-    return $needle !== '' && strpos($haystack, $needle) !== false;
-  }
+  exit;
 }
 
 /**
@@ -262,5 +263,36 @@ function callGeminiApi($systemPrompt, $chatHistory, $userMessage, $apiKey) {
     }
   }
 
+  return null;
+}
+
+/**
+ * Realiza una petición cURL HTTP con soporte SSL flexible
+ */
+function executeCurl($url, $payload = null) {
+  if (!function_exists('curl_init')) return null;
+
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, $url);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+  curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+  curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 6);
+  curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) BeaTaN-AI/1.0');
+
+  if ($payload !== null) {
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, is_array($payload) ? json_encode($payload) : $payload);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+  }
+
+  $response = curl_exec($ch);
+  $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+
+  if ($response !== false && $httpCode >= 200 && $httpCode < 300) {
+    return $response;
+  }
   return null;
 }
