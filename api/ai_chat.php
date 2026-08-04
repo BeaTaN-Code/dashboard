@@ -191,10 +191,10 @@ INSTRUCCIONES DE COMPORTAMIENTO:
 }
 
 /**
- * Realiza la petición a la API de Google Gemini 1.5 Flash
+ * Realiza la petición a la API de Google Gemini (probando modelos en orden: gemini-1.5-flash, gemini-1.5-flash-latest, gemini-2.0-flash, gemini-1.5-pro)
  */
 function callGeminiApi($systemPrompt, $chatHistory, $userMessage, $apiKey) {
-  $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" . urlencode($apiKey);
+  $models = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-pro'];
 
   $contents = [];
   if (is_array($chatHistory)) {
@@ -226,25 +226,29 @@ function callGeminiApi($systemPrompt, $chatHistory, $userMessage, $apiKey) {
 
   if (!function_exists('curl_init')) return null;
 
-  $ch = curl_init();
-  curl_setopt($ch, CURLOPT_URL, $url);
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-  curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-  curl_setopt($ch, CURLOPT_POST, true);
-  curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-  curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-  curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+  foreach ($models as $model) {
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . urlencode($apiKey);
 
-  $response = curl_exec($ch);
-  $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  curl_close($ch);
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
 
-  if ($response !== false && $httpCode >= 200 && $httpCode < 300) {
-    $json = json_decode($response, true);
-    $text = $json['candidates'][0]['content']['parts'][0]['text'] ?? '';
-    if (!empty($text)) {
-      return trim($text);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($response !== false && $httpCode >= 200 && $httpCode < 300) {
+      $json = json_decode($response, true);
+      $text = $json['candidates'][0]['content']['parts'][0]['text'] ?? '';
+      if (!empty($text)) {
+        return trim($text);
+      }
     }
   }
 

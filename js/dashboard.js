@@ -3642,10 +3642,11 @@ async function sendAiChatMessage() {
 }
 
 /**
- * Petición directa desde el navegador a Google Gemini REST API 1.5 Flash.
+ * Petición directa desde el navegador a Google Gemini REST API (probando modelos en orden).
  */
 async function callDirectGeminiApi(systemPrompt, userMessage, apiKey) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const models = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+  let lastError = null;
 
   const contents = [];
   aiChatHistory.forEach(h => {
@@ -3673,21 +3674,29 @@ async function callDirectGeminiApi(systemPrompt, userMessage, apiKey) {
     }
   };
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  for (const model of models) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-  if (!response.ok) {
-    const errJson = await response.json().catch(() => ({}));
-    throw new Error(errJson.error?.message || `HTTP status ${response.status}`);
+      const data = await response.json();
+      if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+        return data.candidates[0].content.parts[0].text.trim();
+      }
+
+      if (data.error?.message) {
+        lastError = data.error.message;
+      }
+    } catch (e) {
+      lastError = e.message;
+    }
   }
 
-  const data = await response.json();
-  const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!replyText) throw new Error("El modelo generativo retornó un texto vacío.");
-  return replyText.trim();
+  throw new Error(lastError || "No se pudo conectar con los modelos de Gemini API.");
 }
 
 /**
