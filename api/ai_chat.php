@@ -165,7 +165,8 @@ INSTRUCCIONES DE COMPORTAMIENTO:
 2. Utiliza los datos exactos del informe financiero anterior para calcular valores, responder preguntas sobre meses específicos (Enero, Febrero, Julio, etc.), fechas, categorías o conceptos particulares.
 3. Si el usuario te saluda, salúdalo con calidez mencionando su nombre y ofreciendo ayuda sobre sus finanzas.
 4. Si el usuario pide recomendaciones, analiza sus deudas y categorías con más egresos para darle consejos concretos y accionables.
-5. Usa formato Markdown limpio con negritas, listas y emojis para una lectura agradable.";
+5. Usa formato Markdown limpio con negritas, listas y emojis para una lectura agradable.
+6. Completa SIEMPRE todas las oraciones, listas y recomendaciones sin cortar jamás una idea a la mitad.";
 
   // 3. OBTENER LLAVE DE API (DE ENTRADA DE USUARIO, DE .ENV O LLAVE INCLUIDA)
   $effectiveApiKey = !empty($userApiKey) ? $userApiKey : ($env['GEMINI_API_KEY'] ?? getenv('GEMINI_API_KEY') ?? '');
@@ -250,7 +251,7 @@ function callGeminiApi($systemPrompt, $chatHistory, $userMessage, $apiKey) {
     'contents' => $contents,
     'generationConfig' => [
       'temperature' => 0.4,
-      'maxOutputTokens' => 1200
+      'maxOutputTokens' => 4096
     ]
   ];
 

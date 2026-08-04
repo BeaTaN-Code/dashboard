@@ -3707,7 +3707,7 @@ async function callDirectGeminiApi(systemPrompt, userMessage, apiKey) {
     contents: contents,
     generationConfig: {
       temperature: 0.4,
-      maxOutputTokens: 1200
+      maxOutputTokens: 4096
     }
   };
 
