@@ -782,7 +782,7 @@ try {
 
                         <div class="form-group">
                           <label><i class="bi bi-currency-dollar"></i> Monto *</label>
-                          <input type="number" name="monto" step="0.01" min="0" placeholder="0.00" required>
+                          <input type="text" inputmode="decimal" name="monto" class="currency-input" placeholder="$00,000.00" required>
                         </div>
                         <div class="form-group">
                           <label><i class="bi bi-calendar"></i> Fecha *</label>
@@ -981,7 +981,7 @@ try {
 
                       <div class="form-group">
                         <label><i class="bi bi-currency-dollar"></i> Monto *</label>
-                        <input type="number" name="monto" step="0.01" min="0" placeholder="0.00" required>
+                        <input type="text" inputmode="decimal" name="monto" class="currency-input" placeholder="$00,000.00" required>
                       </div>
                       <div class="form-group">
                         <label><i class="bi bi-calendar"></i> Fecha *</label>
@@ -1179,7 +1179,7 @@ try {
 
           <div class="form-group">
             <label><i class="bi bi-currency-dollar"></i> Monto</label>
-            <input type="number" name="monto" id="editTransactionMonto" step="0.01" min="0" required>
+            <input type="text" inputmode="decimal" name="monto" id="editTransactionMonto" class="currency-input" placeholder="$00,000.00" required>
           </div>
           <div class="form-group">
             <label><i class="bi bi-bookmark"></i> Categoría</label>
@@ -1338,7 +1338,7 @@ try {
 
           <div class="form-group">
             <label>Monto total *</label>
-            <input type="number" class="mondeudx" name="mondeudx" step="0.01" required>
+            <input type="text" inputmode="decimal" class="mondeudx currency-input" name="mondeudx" placeholder="$00,000.00" required>
           </div>
 
           <div class="form-group">
@@ -1348,7 +1348,7 @@ try {
 
           <div class="form-group">
             <label>Valor cuota</label>
-            <input type="number" class="moncuotx" name="moncuotx" step="0.01" min="0" placeholder="0.00">
+            <input type="text" inputmode="decimal" class="moncuotx currency-input" name="moncuotx" placeholder="$00,000.00">
           </div>
 
           <div class="form-group full-width">
@@ -1394,7 +1394,7 @@ try {
 
           <div class="form-group">
             <label>Monto total *</label>
-            <input type="number" id="mondeudx" name="mondeudx" step="0.01" required>
+            <input type="text" inputmode="decimal" id="mondeudx" name="mondeudx" class="currency-input" placeholder="$00,000.00" required>
           </div>
 
           <div class="form-group">
@@ -1404,7 +1404,7 @@ try {
 
           <div class="form-group">
             <label>Valor cuota</label>
-            <input type="number" id="moncuotx" name="moncuotx" step="0.01" min="0" placeholder="0.00">
+            <input type="text" inputmode="decimal" id="moncuotx" name="moncuotx" class="currency-input" placeholder="$00,000.00">
           </div>
 
           <div class="form-group full-width">

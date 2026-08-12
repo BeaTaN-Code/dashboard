@@ -20,6 +20,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initSidebar();
   initCalendars();
   initNotifications();
+  initCurrencyInputs();
 
   // Cargar datos iniciales
   if (window.isAdmin) {
@@ -751,7 +752,7 @@ async function addTransaction(e, tipgasxx) {
     tipgasxx: tipgasxx,
     deudidxx: formData.get("deudidxx"),
     tipo: formData.get("tipo"),
-    monto: parseFloat(formData.get("monto")),
+    monto: parseMoney(formData.get("monto")),
     categoria: formData.get("categoria"),
     descripcion: formData.get("descripcion"),
     fecha: formData.get("fecha"),
@@ -800,7 +801,7 @@ async function editTransaction(id, tipgasxx) {
         document.getElementById("editTransactionDeudidxx").value = transaction.DEUDIDXX ?? "";
         document.getElementById("editTransactionTipo").value =
           monto >= 0 ? "INGRESO" : "GASTO";
-        document.getElementById("editTransactionMonto").value = Math.abs(monto);
+        document.getElementById("editTransactionMonto").value = formatMoneyString(Math.abs(monto));
         document.getElementById("editTransactionCategoria").value =
           transaction.CATGASXX;
         document.getElementById("editTransactionFecha").value =
@@ -824,7 +825,7 @@ async function updateTransaction(e) {
     id: document.getElementById("editTransactionId").value,
     tipo: document.getElementById("editTransactionTipo").value,
     deudidxx: document.getElementById("editTransactionDeudidxx").value,
-    monto: parseFloat(document.getElementById("editTransactionMonto").value),
+    monto: parseMoney(document.getElementById("editTransactionMonto").value),
     categoria: document.getElementById("editTransactionCategoria").value,
     fecha: document.getElementById("editTransactionFecha").value,
     descripcion: document.getElementById("editTransactionDescripcion").value,
@@ -1016,11 +1017,11 @@ async function addDebt(e) {
   const data = {
     tipperxx: tipperxx,
     tipdeudx: form.tipdeudx.value,
-    mondeudx: parseFloat(form.mondeudx.value),
+    mondeudx: parseMoney(form.mondeudx.value),
     desdeudx: form.desdeudx.value,
     numcuotx: form.numcuotx.value || null,
     feccuotx: form.feccuotx.value || null,
-    moncuotx: form.moncuotx.value || null
+    moncuotx: parseMoney(form.moncuotx.value)
   };
 
   try {
@@ -1055,11 +1056,11 @@ async function editDebt(id, tipperxx) {
 
       document.getElementById("editDebtId").value = d.DEUDIDXX;
       document.getElementById("editDebtTipo").value = d.TIPDEUDX;
-      document.getElementById("mondeudx").value = d.MONDEUDX;
+      document.getElementById("mondeudx").value = formatMoneyString(d.MONDEUDX);
       document.getElementById("editDebtDesc").value = d.DESDEUDX;
-      document.getElementById("moncuotx").value = d.NUMCUOTX;
-      document.getElementById("editDebtFecha").value = d.FECCUOTX;
-      document.getElementById("moncuotx").value = d.MONCUOTX;
+      document.getElementById("numcuotx").value = d.NUMCUOTX || "";
+      document.getElementById("editDebtFecha").value = d.FECCUOTX || "";
+      document.getElementById("moncuotx").value = formatMoneyString(d.MONCUOTX);
       document.getElementById("editDebtTipperxx").value = tipperxx;
 
       openModal("editDebtModal");
@@ -1076,11 +1077,11 @@ async function updateDebt(e) {
   const data = {
     id: document.getElementById("editDebtId").value,
     tipdeudx: document.getElementById("editDebtTipo").value,
-    mondeudx: document.getElementById("mondeudx").value,
+    mondeudx: parseMoney(document.getElementById("mondeudx").value),
     desdeudx: document.getElementById("editDebtDesc").value,
     numcuotx: document.getElementById("numcuotx").value || null,
     feccuotx: document.getElementById("editDebtFecha").value,
-    moncuotx: document.getElementById("moncuotx").value
+    moncuotx: parseMoney(document.getElementById("moncuotx").value)
   };
 
   const tipperxx = document.getElementById("editDebtTipperxx").value;
@@ -1684,6 +1685,70 @@ function selectCalendarDay(calendarId, dateStr, holidayName) {
 }
 
 // ===============================================
+// MONEDA Y FORMATEO DE INPUTS ($00,000.00)
+// ===============================================
+function parseMoney(val) {
+  if (val === null || val === undefined || val === "") return 0;
+  if (typeof val === "number") return val;
+  const cleaned = String(val).replace(/[^0-9.-]/g, "");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
+function formatMoneyString(val) {
+  if (val === null || val === undefined || val === "") return "";
+  const num = parseMoney(val);
+  return "$" + num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function attachCurrencyFormatter(input) {
+  if (!input || input.dataset.currencyAttached) return;
+  input.dataset.currencyAttached = "true";
+
+  input.addEventListener("input", function () {
+    let rawValue = this.value;
+    if (!rawValue) return;
+
+    let clean = rawValue.replace(/[^0-9.]/g, "");
+    let parts = clean.split(".");
+    if (parts.length > 2) {
+      clean = parts[0] + "." + parts.slice(1).join("");
+      parts = clean.split(".");
+    }
+    if (parts[1] && parts[1].length > 2) {
+      parts[1] = parts[1].substring(0, 2);
+    }
+
+    if (clean === "" || clean === ".") {
+      this.value = clean ? "$" + clean : "";
+      return;
+    }
+
+    let integerPart = parts[0];
+    if (integerPart) {
+      integerPart = parseInt(integerPart, 10).toLocaleString("en-US");
+    } else {
+      integerPart = "0";
+    }
+
+    this.value = "$" + integerPart + (parts.length > 1 ? "." + parts[1] : "");
+  });
+
+  input.addEventListener("blur", function () {
+    if (!this.value || this.value.trim() === "" || this.value === "$") {
+      this.value = "";
+      return;
+    }
+    const val = parseMoney(this.value);
+    this.value = formatMoneyString(val);
+  });
+}
+
+function initCurrencyInputs() {
+  document.querySelectorAll(".currency-input").forEach(attachCurrencyFormatter);
+}
+
+// ===============================================
 // MODALES
 // ===============================================
 function openModal(modalId) {
@@ -1691,6 +1756,7 @@ function openModal(modalId) {
   if (modal) {
     modal.classList.add("active");
     document.body.style.overflow = "hidden";
+    initCurrencyInputs();
   }
 }
 
