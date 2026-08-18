@@ -362,14 +362,16 @@ try {
           <i class="bi bi-grid-1x2" id="pageIcon"></i>
           <h1 id="pageTitle">Dashboard</h1>
         </div>
-        <div class="top-bar-actions" style="position: relative; display: flex; align-items: center; gap: 10px;">
-          <button class="btn btn-sm" onclick="openCommandPalette()" style="background: rgba(50, 178, 207, 0.15); border: 1px solid var(--border-color); color: var(--primary-cyan); padding: 6px 12px; border-radius: var(--radius-md); font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-            <i class="bi bi-search"></i> <span style="font-weight: 500;">Buscar...</span> <span class="command-shortcut-badge">Ctrl K</span>
+        <div class="top-bar-actions">
+          <button class="btn btn-sm btn-cmd-palette" onclick="openCommandPalette()" title="Buscar (Ctrl+K)">
+            <i class="bi bi-search"></i>
+            <span class="cmd-text">Buscar...</span>
+            <span class="command-shortcut-badge">Ctrl K</span>
           </button>
 
-          <select id="themeSelector" class="theme-select" onchange="changeTheme(this.value)">
+          <select id="themeSelector" class="theme-select" onchange="changeTheme(this.value)" title="Cambiar Tema">
             <option value="default">🌐 Cyberpunk</option>
-            <option value="oled">🖤 OLED Dark</option>
+            <option value="oled">🖤 OLED</option>
             <option value="emerald">🟢 Emerald</option>
             <option value="purple">🟣 Purple</option>
           </select>
@@ -2073,30 +2075,50 @@ try {
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          layout: {
+            padding: { top: 10, bottom: 5, left: 0, right: 10 }
+          },
           plugins: {
             legend: {
+              position: 'top',
+              align: 'center',
               labels: {
-                color: '#fff'
+                color: '#ffffff',
+                boxWidth: 8,
+                padding: 10,
+                font: {
+                  family: "'Geist', sans-serif",
+                  size: window.innerWidth < 576 ? 10 : 11
+                }
               }
             },
             tooltip: {
               callbacks: {
                 label: function (context) {
                   const value = context.raw;
-                  return `${context.dataset.label}: $${value.toLocaleString()}`;
+                  return `${context.dataset.label}: $${value.toLocaleString('es-CO')}`;
                 }
               }
             }
           },
           scales: {
             x: {
-              ticks: { color: '#aaa' }
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#aaa', font: { size: 10 } }
             },
             y: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
               ticks: {
                 color: '#aaa',
+                font: { size: 10 },
                 callback: function (value) {
-                  return '$' + value.toLocaleString();
+                  const abs = Math.abs(value);
+                  if (abs >= 1000000) {
+                    return (value < 0 ? '-' : '') + '$' + (abs / 1000000).toFixed(1).replace('.0', '') + 'M';
+                  } else if (abs >= 1000) {
+                    return (value < 0 ? '-' : '') + '$' + (abs / 1000).toFixed(0) + 'K';
+                  }
+                  return '$' + value;
                 }
               }
             }
