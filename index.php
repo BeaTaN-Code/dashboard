@@ -362,7 +362,18 @@ try {
           <i class="bi bi-grid-1x2" id="pageIcon"></i>
           <h1 id="pageTitle">Dashboard</h1>
         </div>
-        <div class="top-bar-actions" style="position: relative;">
+        <div class="top-bar-actions" style="position: relative; display: flex; align-items: center; gap: 10px;">
+          <button class="btn btn-sm" onclick="openCommandPalette()" style="background: rgba(50, 178, 207, 0.15); border: 1px solid var(--border-color); color: var(--primary-cyan); padding: 6px 12px; border-radius: var(--radius-md); font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <i class="bi bi-search"></i> <span style="font-weight: 500;">Buscar...</span> <span class="command-shortcut-badge">Ctrl K</span>
+          </button>
+
+          <select id="themeSelector" class="theme-select" onchange="changeTheme(this.value)">
+            <option value="default">🌐 Cyberpunk</option>
+            <option value="oled">🖤 OLED Dark</option>
+            <option value="emerald">🟢 Emerald</option>
+            <option value="purple">🟣 Purple</option>
+          </select>
+
           <button class="notification-bell" id="notificationBell" onclick="toggleNotificationPanel()">
             <i class="bi bi-bell"></i>
             <span class="notification-count" id="notificationCount" style="display: none;">0</span>
@@ -2187,6 +2198,20 @@ try {
       <button class="btn-primary ai-send-btn" onclick="sendAiChatMessage()">
         <i class="bi bi-send-fill"></i>
       </button>
+    </div>
+  </div>
+
+  <!-- Command Palette Modal (Ctrl + K) -->
+  <div class="command-palette-backdrop" id="commandPaletteModal" onclick="closeCommandPaletteOnBackdrop(event)">
+    <div class="command-palette-modal">
+      <div class="command-search-header">
+        <i class="bi bi-search"></i>
+        <input type="text" id="commandPaletteInput" class="command-search-input" placeholder="Escribe un comando o busca una sección... (ej: 'financiero', 'deuda', 'ia')" oninput="filterCommandPalette()">
+        <span class="command-shortcut-badge">ESC para cerrar</span>
+      </div>
+      <div class="command-results-list" id="commandPaletteResults">
+        <!-- Rendered via JS -->
+      </div>
     </div>
   </div>
 

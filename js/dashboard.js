@@ -16,6 +16,8 @@ let lastMessageCount = 0;
 // INICIALIZACION
 // ===============================================
 document.addEventListener("DOMContentLoaded", function () {
+  initTheme();
+  initCommandPalette();
   initTabs();
   initSidebar();
   initCalendars();
@@ -3682,6 +3684,18 @@ async function sendAiChatMessage() {
       appendChatMessage('assistant', data.reply);
       aiChatHistory.push({ role: 'user', content: userMessage });
       aiChatHistory.push({ role: 'assistant', content: data.reply });
+
+      if (data.actionExecuted) {
+        showToast('success', '⚡ Acción Ejecutada', 'BeaTaN AI ha actualizado la base de datos automáticamente.');
+        if (typeof loadTransactions === 'function') {
+          loadTransactions('PERSONAL');
+          if (window.isAdmin) loadTransactions('BEATAN');
+        }
+        if (typeof loadDebts === 'function') {
+          loadDebts('PERSONAL');
+          if (window.isAdmin) loadDebts('BEATAN');
+        }
+      }
     } else if (data.success && data.systemPrompt) {
       // El backend preparó el universo de datos. Llamar a Gemini API directamente si hay clave o solicitarla
       if (storedApiKey) {
@@ -3836,6 +3850,111 @@ function scrollAiChatToBottom() {
     container.scrollTop = container.scrollHeight;
   }
 }
+
+/* ===============================================
+   V2 THEME & COMMAND PALETTE (CTRL + K)
+   =============================================== */
+function initTheme() {
+  const savedTheme = localStorage.getItem('beatan_theme') || 'default';
+  changeTheme(savedTheme, false);
+}
+
+function changeTheme(themeName, save = true) {
+  if (themeName === 'default') {
+    document.documentElement.removeAttribute('data-theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', themeName);
+  }
+  if (save) {
+    localStorage.setItem('beatan_theme', themeName);
+  }
+  const select = document.getElementById('themeSelector');
+  if (select) select.value = themeName;
+}
+
+// Lista global de comandos disponibles
+const commandPaletteItems = [
+  { id: 'nav-personal', title: 'Ir a Financiero Personal', category: 'Navegación', icon: 'bi-person-circle', action: () => switchTab('financiero-personal') },
+  { id: 'nav-beatan', title: 'Ir a Financiero BeaTaN', category: 'Navegación', icon: 'bi-briefcase', action: () => switchTab('financiero-beatan') },
+  { id: 'nav-crono', title: 'Ir a Cronograma & Proyectos', category: 'Navegación', icon: 'bi-calendar-range', action: () => switchTab('cronograma') },
+  { id: 'nav-factu', title: 'Ir a Facturación & Cotizaciones', category: 'Navegación', icon: 'bi-receipt', action: () => switchTab('facturacion') },
+  { id: 'nav-users', title: 'Ir a Usuarios / Administrador', category: 'Navegación', icon: 'bi-people', action: () => switchTab('BEATUSRS') },
+  { id: 'ai-open', title: 'Abrir Asistente BeaTaN AI', category: 'Inteligencia Artificial', icon: 'bi-robot', action: () => toggleAiChatWindow() },
+  { id: 'new-tx-per', title: 'Nueva Transacción Personal', category: 'Acciones', icon: 'bi-plus-circle', action: () => { switchTab('financiero-personal'); openModal('personalTransactionModal'); } },
+  { id: 'new-tx-bea', title: 'Nueva Transacción BeaTaN', category: 'Acciones', icon: 'bi-plus-circle-fill', action: () => { switchTab('financiero-beatan'); openModal('beatanTransactionModal'); } },
+  { id: 'new-debt', title: 'Registrar Nueva Deuda', category: 'Acciones', icon: 'bi-bank', action: () => { switchTab('financiero-personal'); openModal('personalDebtModal'); } }
+];
+
+function initCommandPalette() {
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      openCommandPalette();
+    } else if (e.key === 'Escape') {
+      closeCommandPalette();
+    }
+  });
+}
+
+function openCommandPalette() {
+  const modal = document.getElementById('commandPaletteModal');
+  const input = document.getElementById('commandPaletteInput');
+  if (modal) {
+    modal.classList.add('active');
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+    filterCommandPalette();
+  }
+}
+
+function closeCommandPalette() {
+  const modal = document.getElementById('commandPaletteModal');
+  if (modal) {
+    modal.classList.remove('active');
+  }
+}
+
+function closeCommandPaletteOnBackdrop(e) {
+  if (e.target.id === 'commandPaletteModal') {
+    closeCommandPalette();
+  }
+}
+
+function filterCommandPalette() {
+  const input = document.getElementById('commandPaletteInput');
+  const resultsContainer = document.getElementById('commandPaletteResults');
+  if (!input || !resultsContainer) return;
+
+  const query = input.value.toLowerCase().trim();
+  const filtered = commandPaletteItems.filter(item => 
+    item.title.toLowerCase().includes(query) || 
+    item.category.toLowerCase().includes(query)
+  );
+
+  if (filtered.length === 0) {
+    resultsContainer.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--muted-white);">No se encontraron comandos para "${escapeHtml(query)}"</div>`;
+    return;
+  }
+
+  resultsContainer.innerHTML = filtered.map((item, index) => `
+    <div class="command-item ${index === 0 ? 'selected' : ''}" onclick="runCommandItem('${item.id}')">
+      <i class="bi ${item.icon}"></i>
+      <span class="command-item-title">${escapeHtml(item.title)}</span>
+      <span class="command-item-cat">${escapeHtml(item.category)}</span>
+    </div>
+  `).join('');
+}
+
+function runCommandItem(id) {
+  const item = commandPaletteItems.find(i => i.id === id);
+  if (item && typeof item.action === 'function') {
+    closeCommandPalette();
+    item.action();
+  }
+}
+
 
 
 
