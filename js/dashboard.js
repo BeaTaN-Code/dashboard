@@ -73,6 +73,9 @@ function initTabs() {
 }
 
 function switchTab(tabId) {
+  // Auto-cerrar sidebar en celulares al hacer click en un item
+  closeSidebar();
+
   // Actualizar navegacion activa
   document.querySelectorAll(".nav-item").forEach((item) => {
     item.classList.remove("active");
