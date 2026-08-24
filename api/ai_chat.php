@@ -207,19 +207,28 @@ function callGeminiApiWithTools($systemPrompt, $chatHistory, $userMessage, $apiK
   $cleanKey = trim(str_replace(['"', "'"], '', $apiKey));
   if (empty($cleanKey)) return null;
 
-  $targetModel = 'gemini-1.5-flash';
+  $targetModel = 'gemini-3.6-flash';
   $listUrl = "https://generativelanguage.googleapis.com/v1beta/models?key=" . urlencode($cleanKey);
   $listRaw = executeCurl($listUrl);
   if ($listRaw) {
     $listJson = json_decode($listRaw, true);
     if (!empty($listJson['models']) && is_array($listJson['models'])) {
+      $preferredModel = null;
       foreach ($listJson['models'] as $m) {
         if (isset($m['supportedGenerationMethods']) && in_array('generateContent', $m['supportedGenerationMethods'])) {
-          if (strpos($m['name'], 'flash') !== false || strpos($m['name'], 'pro') !== false) {
-            $targetModel = str_replace('models/', '', $m['name']);
+          $modelName = str_replace('models/', '', $m['name']);
+          if (strpos($modelName, '3.6-flash') !== false) {
+            $preferredModel = $modelName;
             break;
+          } elseif (strpos($modelName, '3.6') !== false && !$preferredModel) {
+            $preferredModel = $modelName;
+          } elseif (strpos($modelName, 'flash') !== false && !$preferredModel) {
+            $preferredModel = $modelName;
           }
         }
+      }
+      if ($preferredModel) {
+        $targetModel = $preferredModel;
       }
     }
   }

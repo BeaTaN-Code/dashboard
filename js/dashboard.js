@@ -3712,7 +3712,7 @@ async function sendAiChatMessage() {
           appendChatMessage('assistant', `⚠️ **Error de la API Key de Gemini:** ${geminiErr.message}. Haz clic en el botón **Clave IA** arriba para verificar tu API Key.`);
         }
       } else {
-        const keyNotice = `⚙️ **Para activar la Inteligencia Artificial Generativa Real (Google Gemini 1.5 Flash):**\n\n` +
+        const keyNotice = `⚙️ **Para activar la Inteligencia Artificial Generativa Real (Google Gemini 3.6 Flash):**\n\n` +
           `Por favor haz clic en el botón **[ 🔑 Clave IA ]** arriba a la derecha e ingresa tu API Key gratuita.\n\n` +
           `👉 Puedes obtener tu clave en 10 segundos gratis sin tarjeta de crédito en: **[Google AI Studio](https://aistudio.google.com/app/apikey)**`;
         appendChatMessage('assistant', keyNotice);
@@ -3741,7 +3741,7 @@ async function callDirectGeminiApi(systemPrompt, userMessage, apiKey) {
   }
 
   // 1. Descubrir dinámicamente los modelos activos para esta API Key
-  let targetModel = 'gemini-1.5-flash';
+  let targetModel = 'gemini-3.6-flash';
   try {
     const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`);
     const listData = await listRes.json();
@@ -3751,12 +3751,22 @@ async function callDirectGeminiApi(systemPrompt, userMessage, apiKey) {
     }
 
     if (Array.isArray(listData.models)) {
-      const validModel = listData.models.find(m => 
-        m.supportedGenerationMethods?.includes('generateContent') &&
-        (m.name.includes('flash') || m.name.includes('pro') || m.name.includes('gemini'))
-      );
-      if (validModel) {
-        targetModel = validModel.name.replace('models/', '');
+      let preferredModel = null;
+      for (const m of listData.models) {
+        if (m.supportedGenerationMethods?.includes('generateContent')) {
+          const modelName = m.name.replace('models/', '');
+          if (modelName.includes('3.6-flash')) {
+            preferredModel = modelName;
+            break;
+          } else if (modelName.includes('3.6') && !preferredModel) {
+            preferredModel = modelName;
+          } else if (modelName.includes('flash') && !preferredModel) {
+            preferredModel = modelName;
+          }
+        }
+      }
+      if (preferredModel) {
+        targetModel = preferredModel;
       }
     }
   } catch (e) {
