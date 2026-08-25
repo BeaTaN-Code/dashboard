@@ -144,6 +144,7 @@ TIENES ACCESO TOTAL A LA BASE DE DATOS FINANCIERA EN TIEMPO REAL DE '{$userName}
 === RESUMEN GENERAL HASTA HOY ===
 - Usuario: {$userName}
 - Tipo de Cuenta: {$tipgasxx}
+- Fecha Actual del Sistema: " . date('Y-m-d') . "
 - Balance Total Disponible: $" . number_format($totalBalance, 2, '.', ',') . " COP
 - Ingresos Totales Históricos: $" . number_format($totalIncome, 2, '.', ',') . " COP
 - Gastos Totales Históricos: $" . number_format($totalExpense, 2, '.', ',') . " COP
@@ -166,7 +167,7 @@ INSTRUCCIONES DE COMPORTAMIENTO Y BLINDAJE DE CONTEXTO:
 3. Responde de manera 100% natural, fluida, inteligente y personalizada en español. NUNCA uses plantillas repetitivas.
 4. Utiliza los datos exactos del informe financiero anterior para calcular valores o responder preguntas sobre la cuenta '{$tipgasxx}'.
 5. TIENES CAPACIDAD DE EJECUTAR ACCIONES REALES EN LA BASE DE DATOS usando tus herramientas (tools):
-   - Si el usuario pide registrar un gasto o ingreso (\"Registra un gasto de 50000 en comida\", \"Añade ingreso de 2000000\"), EJECUTA LA HERRAMIENTA `add_transaction`.
+   - Si el usuario pide registrar un gasto o ingreso (\"Registra un gasto de 50000 en comida el 15 de septiembre\"), EJECUTA LA HERRAMIENTA `add_transaction`. Si el usuario menciona o insinúa una fecha (pasada, presente o futura), calcula y pasa el parámetro `fecha` en formato YYYY-MM-DD.
    - Si el usuario pide crear una deuda o préstamo (\"Registra una deuda de 300000 a Juan\"), EJECUTA LA HERRAMIENTA `create_debt`.
 6. Usa formato Markdown limpio con negritas, listas y emojis para una lectura agradable y ordenada.";
 
@@ -268,6 +269,7 @@ function callGeminiApiWithTools($systemPrompt, $chatHistory, $userMessage, $apiK
               'monto' => ['type' => 'NUMBER', 'description' => 'Monto positivo en COP'],
               'categoria' => ['type' => 'STRING', 'description' => 'Categoría del movimiento'],
               'descripcion' => ['type' => 'STRING', 'description' => 'Descripción o concepto'],
+              'fecha' => ['type' => 'STRING', 'description' => 'Fecha de la transacción en formato YYYY-MM-DD (opcional; si el usuario especifica una fecha explícita o relativa pasados/futuros, ej: 2026-09-15)'],
               'tipgasxx' => ['type' => 'STRING', 'description' => 'BEATAN o PERSONAL (opcional, por defecto según contexto)']
             ],
             'required' => ['tipo', 'monto', 'categoria', 'descripcion']
@@ -368,6 +370,14 @@ function executeAiAddTransaction($pdo, $userId, $args, $defaultTipgas) {
     $today = date('Y-m-d');
     $nowTime = date('H:i:s');
 
+    // Manejar fecha personalizada enviada por la IA
+    $fechaInput = trim($args['fecha'] ?? '');
+    if (!empty($fechaInput) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaInput)) {
+      $fincfecx = $fechaInput;
+    } else {
+      $fincfecx = $today;
+    }
+
     $stmt = $pdo->prepare("INSERT INTO FINANCIX 
       (USRIDXXX, TIPGASXX, MONTGASX, CATGASXX, DESGASXX, FINCFECX, REGUSRXX, REGFECXX, REGHORXX, REGESTXX)
       VALUES (:userId, :tipgasxx, :montgasx, :catgasxx, :desgasxx, :fincfecx, :regusr, :regfec, :reghor, 'ACTIVO')");
@@ -378,7 +388,7 @@ function executeAiAddTransaction($pdo, $userId, $args, $defaultTipgas) {
       ':montgasx' => $montgasx,
       ':catgasxx' => $catgasxx,
       ':desgasxx' => $desgasxx,
-      ':fincfecx' => $today,
+      ':fincfecx' => $fincfecx,
       ':regusr' => $userId,
       ':regfec' => $today,
       ':reghor' => $nowTime
@@ -387,7 +397,7 @@ function executeAiAddTransaction($pdo, $userId, $args, $defaultTipgas) {
     $sign = ($tipo === 'INGRESO') ? '+' : '-';
     return [
       'success' => true,
-      'message' => "Registrado {$tipo} de {$sign}\$" . number_format($monto, 2) . " COP ('{$desgasxx}') en categoría '{$catgasxx}' para cuenta {$tipgasxx}."
+      'message' => "Registrado {$tipo} de {$sign}\$" . number_format($monto, 2) . " COP ('{$desgasxx}') con fecha {$fincfecx} en categoría '{$catgasxx}' para cuenta {$tipgasxx}."
     ];
   } catch (Exception $e) {
     return ['success' => false, 'message' => 'Error BD: ' . $e->getMessage()];
