@@ -128,6 +128,7 @@ function getCurrentUser()
 
   return [
     'id' => $_SESSION['user_id'] ?? null,
+    'USRIDXXX' => $_SESSION['user_id'] ?? null,
     'name' => $_SESSION['user_name'] ?? null,
     'email' => $_SESSION['user_email'] ?? null,
     'is_admin' => $_SESSION['is_admin'] ?? false

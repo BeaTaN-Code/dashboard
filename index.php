@@ -228,7 +228,7 @@ try {
     if (typeof pdfjsLib !== 'undefined') {
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
-    window.CURRENT_USER_ID = "<?php echo htmlspecialchars($user['USRIDXXX'] ?? ''); ?>";
+    window.CURRENT_USER_ID = "<?php echo htmlspecialchars($user['id'] ?? $user['USRIDXXX'] ?? ''); ?>";
   </script>
 </head>
 
@@ -929,7 +929,7 @@ try {
                       <option value="A FAVOR">A favor</option>
                       <option value="EN CONTRA">En contra</option>
                     </select>
-                    <input type="text" id="beatanDebtSearch" class="debt-filter-input" placeholder="&#x1F50D; Buscar deuda..." oninput="debounceLoadDebts('BEATAN')">
+                    <input type="text" id="beatanDebtSearch" class="debt-filter-input" placeholder="&#x1F50D; Buscar deuda..." oninput="debounceLoadDebts('BEATAN')" autocomplete="off">
                   </div>
                   <div class="table-container" id="beatanDebtsTable">
                     <div class="loading">
@@ -1132,7 +1132,7 @@ try {
                     <option value="A FAVOR">A favor</option>
                     <option value="EN CONTRA">En contra</option>
                   </select>
-                  <input type="text" id="personalDebtSearch" class="debt-filter-input" placeholder="&#x1F50D; Buscar deuda..." oninput="debounceLoadDebts('PERSONAL')">
+                  <input type="text" id="personalDebtSearch" class="debt-filter-input" placeholder="&#x1F50D; Buscar deuda..." oninput="debounceLoadDebts('PERSONAL')" autocomplete="off">
                 </div>
                 <div class="table-container" id="personalDebtsTable">
                   <div class="loading">
@@ -1257,7 +1257,7 @@ try {
 
             <div class="form-group">
               <label><i class="bi bi-key"></i> Clave PDF (si aplica)</label>
-              <input type="password" id="importPdfPassword" class="form-control" value="<?php echo htmlspecialchars($user['USRIDXXX'] ?? ''); ?>" placeholder="Cédula o Clave">
+              <input type="password" id="importPdfPassword" class="form-control" value="<?php echo htmlspecialchars($user['id'] ?? $user['USRIDXXX'] ?? ''); ?>" placeholder="Cédula o Clave" autocomplete="new-password">
               <small style="font-size: 0.75rem; color: #888;">Por defecto usa tu Cédula</small>
             </div>
           </div>
