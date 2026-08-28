@@ -847,16 +847,21 @@ try {
                   <!-- Transactions Table -->
                   <div class="card">
                   <div class="card-header">
-                    <h3 class="card-title">
-                      <i class="bi bi-list-ul"></i>
-                      Movimientos
-                      <button class="btn-secondary" onclick="openBeatanModal()" title="Nuevo Movimiento">
-                        <i class="bi bi-plus"></i>
-                      </button>
-                      <button class="btn-primary" onclick="openImportModal('BEATAN')" style="margin-left: 8px; font-size: 0.85rem; padding: 6px 12px;" title="Subir Extracto (PDF / Imagen)">
-                        <i class="bi bi-file-earmark-arrow-up"></i> Subir Extracto
-                      </button>
-                    </h3>
+                    <div class="card-title-group">
+                      <h3 class="card-title">
+                        <i class="bi bi-list-ul"></i>
+                        <span>Movimientos</span>
+                      </h3>
+                      <div class="card-header-actions">
+                        <button class="btn-action-add" onclick="openBeatanModal()" title="Nuevo Movimiento">
+                          <i class="bi bi-plus-lg"></i>
+                        </button>
+                        <button class="btn-action-import" onclick="openImportModal('BEATAN')" title="Subir Extracto (PDF / Imagen)">
+                          <i class="bi bi-file-earmark-arrow-up"></i>
+                          <span class="btn-text">Subir Extracto</span>
+                        </button>
+                      </div>
+                    </div>
                     <div class="filters-bar" style="margin-bottom: 0; flex-wrap: wrap; gap: 8px;">
                       <div class="filter-group">
                         <label>Tipo:</label>
@@ -1048,16 +1053,21 @@ try {
                 <!-- Transactions Table -->
                 <div class="card">
                 <div class="card-header">
-                  <h3 class="card-title">
-                    <i class="bi bi-currency-dollar"></i>
-                    Movimientos Personales
-                    <button class="btn-secondary" onclick="openPersonalModal()" title="Nuevo Movimiento">
-                      <i class="bi bi-plus"></i>
-                    </button>
-                    <button class="btn-primary" onclick="openImportModal('PERSONAL')" style="margin-left: 8px; font-size: 0.85rem; padding: 6px 12px;" title="Subir Extracto (PDF / Imagen)">
-                      <i class="bi bi-file-earmark-arrow-up"></i> Subir Extracto
-                    </button>
-                  </h3>
+                    <div class="card-title-group">
+                      <h3 class="card-title">
+                        <i class="bi bi-currency-dollar"></i>
+                        <span>Movimientos Personales</span>
+                      </h3>
+                      <div class="card-header-actions">
+                        <button class="btn-action-add" onclick="openPersonalModal()" title="Nuevo Movimiento">
+                          <i class="bi bi-plus-lg"></i>
+                        </button>
+                        <button class="btn-action-import" onclick="openImportModal('PERSONAL')" title="Subir Extracto (PDF / Imagen)">
+                          <i class="bi bi-file-earmark-arrow-up"></i>
+                          <span class="btn-text">Subir Extracto</span>
+                        </button>
+                      </div>
+                    </div>
                   <div class="filters-bar" style="margin-bottom: 0; flex-wrap: wrap; gap: 8px;">
                     <div class="filter-group">
                       <label>Tipo:</label>

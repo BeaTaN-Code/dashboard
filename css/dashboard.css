@@ -782,6 +782,107 @@ a:hover {
   color: var(--primary-cyan);
 }
 
+/* ===== CARD HEADER ACTIONS & RESPONSIVE IMPORT BUTTON ===== */
+.card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-action-add {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-sm, 8px);
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all var(--transition-smooth, 0.2s ease);
+}
+
+.btn-action-add:hover {
+  border-color: var(--primary-cyan, #00d2ff);
+  color: var(--primary-cyan, #00d2ff);
+  background: rgba(0, 210, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.btn-action-import {
+  background: linear-gradient(135deg, rgba(0, 210, 255, 0.15), rgba(0, 255, 170, 0.1));
+  color: var(--primary-cyan, #00d2ff);
+  border: 1px solid rgba(0, 210, 255, 0.35);
+  border-radius: var(--radius-sm, 8px);
+  padding: 6px 13px;
+  height: 34px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: var(--font-text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 210, 255, 0.1);
+}
+
+.btn-action-import i {
+  font-size: 0.95rem;
+  color: var(--primary-cyan, #00d2ff);
+  transition: transform 0.2s ease;
+}
+
+.btn-action-import:hover {
+  background: linear-gradient(135deg, rgba(0, 210, 255, 0.28), rgba(0, 255, 170, 0.22));
+  border-color: rgba(0, 210, 255, 0.65);
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(0, 210, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-action-import:hover i {
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 576px) {
+  .card-title-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .btn-action-import {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 440px) {
+  .btn-action-import .btn-text {
+    display: none;
+  }
+  .btn-action-import {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    justify-content: center;
+  }
+  .btn-action-import i {
+    font-size: 1.1rem;
+  }
+}
+
 /* ===== STATS CARDS ===== */
 .stats-grid {
   display: grid;
