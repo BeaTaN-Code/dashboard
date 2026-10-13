@@ -20,7 +20,12 @@
  */
 
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/security.php';
 date_default_timezone_set('America/Bogota');
+
+// Antes era accesible públicamente por URL y su salida exponía deudas e IDs de usuarios.
+// Ahora solo se ejecuta por CLI (php api/cron_deudas.php) o con ?token=CRON_SECRET.
+app_require_cli_or_cron_token();
 
 $startTime = microtime(true);
 $timestamp = date('Y-m-d H:i:s');
@@ -135,10 +140,13 @@ try {
         $catgasxx = $esFavor ? 'INGRESO' : 'DEUDA';
 
         for ($i = $existentes; $i < $maxCuotas; $i++) {
-            $fechaCuota = clone $inicio;
+            // Se parte del día 1 para que "+N month" no desborde (31 ene + 1 mes = 3 mar).
+            $fechaCuota = new DateTime($inicio->format('Y-m-01'));
             $fechaCuota->modify("+{$i} month");
 
-            $dia        = str_pad((string)$d['FECCUOTX'], 2, '0', STR_PAD_LEFT);
+            // Día de pago limitado al último día del mes (p. ej. día 31 en febrero => 28/29).
+            $diaPago    = max(1, min((int) $d['FECCUOTX'], (int) $fechaCuota->format('t')));
+            $dia        = str_pad((string) $diaPago, 2, '0', STR_PAD_LEFT);
             $fechaFinal = $fechaCuota->format("Y-m") . "-{$dia}";
 
             // BUG CORREGIDO: Verificar si ya existe una cuota para esa fecha + deuda

@@ -1,0 +1,20 @@
+# dashboard/.htaccess  (Apache; en Nginx replicar estas reglas en la configuración del sitio)
+Options -Indexes
+
+# Bloquear archivos sensibles: .env y otros ocultos, volcados SQL, composer, logs
+<FilesMatch "(^\.|\.(SQL|sql|log|lock|md|ini|sh|bak)$|^composer\.json$)">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# El service worker debe poder servirse
+<Files "sw.js">
+  <IfModule mod_authz_core.c>
+    Require all granted
+  </IfModule>
+</Files>

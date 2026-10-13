@@ -1,31 +1,18 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+// dashboard/api/send_push.php
+// Envía recordatorios push de gastos de mañana. Solo CLI o ?token=CRON_SECRET
+// (antes cualquiera podía dispararlo por URL y ver los endpoints de los suscriptores).
+
+require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/security.php';
+app_require_cli_or_cron_token();
 
 require __DIR__ . '/../vendor/autoload.php';
 
 use Minishlink\WebPush\WebPush;
 use Minishlink\WebPush\Subscription;
 
-require_once __DIR__ . '/../config/db.php';
-
-/* =========================
-   CARGAR .ENV
-========================= */
-$envPaths = [
-  __DIR__ . '/../../.env',
-  __DIR__ . '/../.env',
-  $_SERVER['DOCUMENT_ROOT'] . '/.env'
-];
-
-$env = [];
-foreach ($envPaths as $path) {
-  if (file_exists($path)) {
-    $env = parse_env($path);
-    break;
-  }
-}
+$env = app_env();
 
 if (!isset($env['VAPID_PUBLIC_KEY'], $env['VAPID_PRIVATE_KEY'])) {
   die("❌ VAPID keys no encontradas en .env");
@@ -128,11 +115,15 @@ $reports = $webPush->flush();
 /* =========================
    REPORTE
 ========================= */
+$ok = 0;
+$fail = 0;
 foreach ($reports as $report) {
-  echo "Endpoint: {$report->getRequest()->getUri()}\n";
   if ($report->isSuccess()) {
-    echo "✅ Enviado correctamente\n";
+    $ok++;
   } else {
-    echo "❌ Error: {$report->getReason()}\n";
+    $fail++;
+    error_log('send_push: ' . $report->getReason());
   }
 }
+echo "Notificaciones enviadas: $ok, fallidas: $fail" . PHP_EOL;
+

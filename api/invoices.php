@@ -2,9 +2,9 @@
 // dashboard/api/invoices.php
 // API para gestionar facturas y presupuestos de BeaTaN (solo admin)
 
-header('Content-Type: application/json');
-session_start();
-require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/api_helper.php';
+require_once __DIR__ . '/../lib/validation.php';
+api_bootstrap();
 
 // Verificar autenticacion
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
@@ -92,8 +92,9 @@ function getInvoices($pdo) {
       echo json_encode(['success' => true, 'data' => $invoices]);
     }
   } catch (Exception $e) {
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al obtener facturas: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al obtener facturas']);
   }
 }
 
@@ -115,6 +116,39 @@ function createInvoice($pdo, $adminId) {
   $total       = floatval($input['facttota'] ?? 0);
   $estado      = trim($input['factestx'] ?? 'BORRADOR');
   $items       = $input['items'] ?? [];
+
+  // Los totales se recalculan en el servidor (antes se confiaba en los enviados por el navegador).
+  $subtotalCents = 0;
+  if (is_array($items)) {
+    foreach ($items as $it) {
+      $c = money_to_cents($it['itemcant'] ?? 0);
+      $v = money_to_cents($it['itemvalu'] ?? 0);
+      if ($c !== null && $v !== null && $c > 0 && $v > 0) {
+        $subtotalCents += (int) round($c * $v / 100);
+      }
+    }
+  }
+  if ($iva < 0 || $iva > 100 || $descuento < 0) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'El IVA debe estar entre 0 y 100 % y el descuento no puede ser negativo']);
+    return;
+  }
+  $ivaCents = (int) round($subtotalCents * $iva / 100);
+  $descCents = money_to_cents($descuento) ?? 0;
+  $totalCents = $subtotalCents + $ivaCents - $descCents;
+  $subtotal = cents_to_decimal($subtotalCents);
+  $descuento = cents_to_decimal($descCents);
+  $total = $totalCents / 100;
+  $totalDecimal = cents_to_decimal($totalCents);
+
+  if (!valid_date($fechaEmis) || !valid_date($fechaVenc) || $fechaVenc < $fechaEmis) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Revisa las fechas: el vencimiento no puede ser anterior a la emisión']);
+    return;
+  }
+  if (!in_array($estado, ['BORRADOR', 'ENVIADA', 'PAGADA', 'ANULADA'], true)) {
+    $estado = 'BORRADOR';
+  }
 
   if (empty($numero) || empty($fechaEmis) || empty($fechaVenc) || empty($clienteNom) || $total <= 0 || empty($items)) {
     http_response_code(400);
@@ -164,7 +198,7 @@ function createInvoice($pdo, $adminId) {
       ':subtotal'    => $subtotal,
       ':iva'         => $iva,
       ':descuento'   => $descuento,
-      ':total'       => $total,
+      ':total'       => $totalDecimal,
       ':estado'      => $estado,
       ':adminId'     => $adminId
     ]);
@@ -190,7 +224,7 @@ function createInvoice($pdo, $adminId) {
       $desc = trim($item['itemdesx'] ?? '');
       $cant = floatval($item['itemcant'] ?? 0);
       $valu = floatval($item['itemvalu'] ?? 0);
-      $tota = $cant * $valu;
+      $tota = cents_to_decimal((int) round((money_to_cents($cant) ?? 0) * (money_to_cents($valu) ?? 0) / 100));
 
       if (empty($desc) || $cant <= 0 || $valu <= 0) {
         throw new Exception("Campos de item inválidos en el detalle");
@@ -212,8 +246,9 @@ function createInvoice($pdo, $adminId) {
     if ($pdo->inTransaction()) {
       $pdo->rollBack();
     }
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al crear factura: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al crear factura']);
   }
 }
 
@@ -222,7 +257,7 @@ function updateInvoice($pdo, $adminId) {
   $id     = intval($input['id'] ?? 0);
   $estado = trim($input['estado'] ?? '');
 
-  if ($id <= 0 || empty($estado)) {
+  if ($id <= 0 || !in_array($estado, ['BORRADOR', 'ENVIADA', 'PAGADA', 'ANULADA'], true)) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'ID y estado son requeridos']);
     return;
@@ -244,8 +279,9 @@ function updateInvoice($pdo, $adminId) {
     ]);
     echo json_encode(['success' => true, 'message' => 'Estado de factura actualizado exitosamente']);
   } catch (Exception $e) {
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al actualizar factura: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al actualizar factura']);
   }
 }
 
@@ -295,7 +331,8 @@ function deleteInvoice($pdo, $adminId) {
     if ($pdo->inTransaction()) {
       $pdo->rollBack();
     }
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al eliminar factura: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al eliminar factura']);
   }
 }

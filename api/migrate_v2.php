@@ -2,13 +2,12 @@
 // dashboard/api/migrate_v2.php
 // Script de migración idempotente para aplicar índices de rendimiento en base de datos MySQL
 
-header('Content-Type: application/json; charset=utf-8');
-require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../config/api_helper.php';
 
-$auth = api_require_auth();
-if (!$auth['is_admin']) {
-    api_response(false, 'Solo el usuario administrador puede ejecutar migraciones de BD', 403);
+api_bootstrap();
+api_require_admin();
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    api_response(false, 'Usa POST para ejecutar la migración', 405);
 }
 
 $pdo = getDbConnection();
@@ -35,7 +34,8 @@ function addIndexIfNotExists(PDO $pdo, string $table, string $indexName, string 
         $pdo->exec($sql);
         return "✅ Índice '$indexName' creado exitosamente en '$table' ($columns).";
     } catch (Exception $e) {
-        return "❌ Error creando '$indexName' en '$table': " . $e->getMessage();
+        api_log_error("migrate_v2 $indexName", $e);
+        return "❌ Error creando '$indexName' en '$table'.";
     }
 }
 

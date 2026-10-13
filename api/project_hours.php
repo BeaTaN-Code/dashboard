@@ -2,9 +2,8 @@
 // dashboard/api/project_hours.php
 // API para gestionar el cronograma de horas de proyectos (solo admin)
 
-header('Content-Type: application/json');
-session_start();
-require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/api_helper.php';
+api_bootstrap();
 
 // Verificar autenticacion
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
@@ -87,8 +86,9 @@ function getHoursLogs($pdo) {
 
     echo json_encode(['success' => true, 'data' => $logs]);
   } catch (Exception $e) {
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al obtener horas: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al obtener horas']);
   }
 }
 
@@ -122,8 +122,9 @@ function createHoursLog($pdo, $adminId) {
     ]);
     echo json_encode(['success' => true, 'message' => 'Horas registradas exitosamente', 'id' => $pdo->lastInsertId()]);
   } catch (Exception $e) {
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al registrar horas: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al registrar horas']);
   }
 }
 
@@ -151,7 +152,8 @@ function deleteHoursLog($pdo, $adminId) {
     ]);
     echo json_encode(['success' => true, 'message' => 'Registro de horas eliminado exitosamente']);
   } catch (Exception $e) {
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al eliminar horas: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al eliminar horas']);
   }
 }

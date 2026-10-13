@@ -1,11 +1,14 @@
 <?php
 // dashboard/config/db.php
-// Configuración de conexión a base de datos usando .env
+// Conexión a base de datos usando .env y utilidades de sesión.
 date_default_timezone_set('America/Bogota');
+
+require_once __DIR__ . '/env.php';
 
 // Helper para obtener cabeceras si no existe (ej. en FastCGI/CGI)
 if (!function_exists('getallheaders')) {
-  function getallheaders() {
+  function getallheaders()
+  {
     $headers = [];
     foreach ($_SERVER as $name => $value) {
       if (substr($name, 0, 5) == 'HTTP_') {
@@ -16,97 +19,94 @@ if (!function_exists('getallheaders')) {
   }
 }
 
-// Configuración de CORS para peticiones de la API desde móviles u otros puertos de desarrollo
-if (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/api/') !== false) {
-  $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
-  header("Access-Control-Allow-Origin: $origin");
-  header("Access-Control-Allow-Credentials: true");
-  header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With, X-Session-ID");
-  header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-  
-  if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-  }
-}
-
-// Restauración de sesión para clientes móviles que envían X-Session-ID en cabeceras o parámetros
-$headers = array_change_key_case(getallheaders(), CASE_LOWER);
-$mobileSessionId = $headers['x-session-id'] ?? $_GET['session_id'] ?? $_POST['session_id'] ?? null;
-if ($mobileSessionId) {
-  if (session_status() === PHP_SESSION_ACTIVE) {
-    session_write_close();
-  }
-  session_id($mobileSessionId);
-  session_start();
-}
-function parse_env($path)
+function db_driver(): string
 {
-  $env = [];
-  if (!file_exists($path))
-    return $env;
-  $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-  foreach ($lines as $line) {
-    $line = trim($line);
-    if ($line === '' || $line[0] === '#')
-      continue;
-    if (strpos($line, '=') === false)
-      continue;
-    list($name, $value) = array_map('trim', explode('=', $line, 2));
-    $value = trim($value, " \t\n\r\0\x0B\"'");
-    $env[$name] = $value;
-  }
-  return $env;
+  $type = strtolower((string) env_value('DB_TYPE', 'mysql'));
+  if ($type === 'pgsql' || $type === 'postgres')
+    return 'pgsql';
+  if ($type === 'sqlite')
+    return 'sqlite';
+  return 'mysql';
 }
 
 function getDbConnection()
 {
-  // Buscar .env en múltiples ubicaciones posibles
-  $envPaths = [
-    __DIR__ . '/../../.env',
-    __DIR__ . '/../.env',
-    '/.env'
+  static $pdo = null;
+  if ($pdo instanceof PDO)
+    return $pdo;
+
+  $driver = db_driver();
+  $options = [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
   ];
 
-  $env = [];
-  foreach ($envPaths as $path) {
-    if (file_exists($path)) {
-      $env = parse_env($path);
-      break;
-    }
-  }
-
-  $dbType = isset($env['DB_TYPE']) ? strtolower($env['DB_TYPE']) : 'mysql';
-  $dbHost = $env['DB_HOST'] ?? '127.0.0.1';
-  $dbPort = $env['DB_PORT'] ?? ($dbType === 'postgres' ? '5432' : '3306');
-  $dbName = $env['DB_NAME'] ?? '';
-  $dbUser = $env['DB_USER'] ?? '';
-  $dbPass = $env['DB_PASSWORD'] ?? '';
-
   try {
-    if ($dbType === 'postgres' || $dbType === 'pgsql') {
-      $dsn = "pgsql:host={$dbHost};port={$dbPort};dbname={$dbName}";
-    } else {
-      $dsn = "mysql:host={$dbHost};port={$dbPort};dbname={$dbName};charset=utf8mb4";
+    if ($driver === 'sqlite') {
+      // Solo para el entorno de pruebas local (tests/). Nunca en producción.
+      $path = (string) env_value('DB_PATH', '');
+      if ($path !== '' && !preg_match('#^([A-Za-z]:)?[\\\\/]#', $path)) {
+        $path = __DIR__ . '/../' . $path; // relativo a la raíz del proyecto
+      }
+      $pdo = new PDO('sqlite:' . $path, null, null, $options);
+      $pdo->exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000;');
+      db_register_sqlite_compat($pdo);
+      return $pdo;
     }
 
-    $pdo = new PDO($dsn, $dbUser, $dbPass, [
-      PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-      PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
+    $host = env_value('DB_HOST', '127.0.0.1');
+    $port = env_value('DB_PORT', $driver === 'pgsql' ? '5432' : '3306');
+    $name = env_value('DB_NAME', '');
+    $dsn = $driver === 'pgsql'
+      ? "pgsql:host={$host};port={$port};dbname={$name}"
+      : "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
 
-    if ($dbType === 'mysql') {
+    $pdo = new PDO($dsn, env_value('DB_USER', ''), env_value('DB_PASSWORD', ''), $options);
+
+    if ($driver === 'mysql') {
       $pdo->exec("SET time_zone = '-05:00'");
     }
-
     return $pdo;
   } catch (Exception $e) {
     error_log('DB connection error: ' . $e->getMessage());
+    $pdo = null;
     return null;
   }
 }
 
-// Función para verificar sesión activa
+/**
+ * Funciones equivalentes a MySQL para poder ejecutar el código en SQLite durante las pruebas.
+ */
+function db_register_sqlite_compat(PDO $pdo): void
+{
+  $pdo->sqliteCreateFunction('CURDATE', fn() => date('Y-m-d'), 0);
+  $pdo->sqliteCreateFunction('CURTIME', fn() => date('H:i:s'), 0);
+  $pdo->sqliteCreateFunction('NOW', fn() => date('Y-m-d H:i:s'), 0);
+  $pdo->sqliteCreateFunction('YEAR', fn($d) => $d ? (int) substr($d, 0, 4) : null, 1);
+  $pdo->sqliteCreateFunction('MONTH', fn($d) => $d ? (int) substr($d, 5, 2) : null, 1);
+  $pdo->sqliteCreateFunction('DATE_FORMAT', function ($d, $fmt) {
+    if (!$d)
+      return null;
+    $ts = strtotime($d);
+    return strtr($fmt, ['%Y' => date('Y', $ts), '%m' => date('m', $ts), '%d' => date('d', $ts)]);
+  }, 2);
+}
+
+/** Sufijo de bloqueo de fila; SQLite no soporta FOR UPDATE (bloquea la BD completa). */
+function db_for_update(): string
+{
+  return db_driver() === 'sqlite' ? '' : ' FOR UPDATE';
+}
+
+/** Indica si la excepción corresponde a una tabla inexistente (migración pendiente). */
+function db_is_missing_table(Throwable $e): bool
+{
+  $msg = $e->getMessage();
+  return strpos($msg, '42S02') !== false || stripos($msg, 'no such table') !== false
+    || stripos($msg, "doesn't exist") !== false;
+}
+
+// Función para verificar sesión activa (páginas HTML)
 function checkSession()
 {
   if (session_status() === PHP_SESSION_NONE) {
@@ -134,7 +134,3 @@ function getCurrentUser()
     'is_admin' => $_SESSION['is_admin'] ?? false
   ];
 }
-
-// Zona horaria para Colombia
-date_default_timezone_set('America/Bogota');
-?>

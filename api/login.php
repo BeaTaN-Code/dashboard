@@ -2,36 +2,32 @@
 // dashboard/api/login.php
 // API para login de la aplicación móvil y clientes API
 
-header('Content-Type: application/json');
+require_once __DIR__ . '/../config/api_helper.php';
 require_once __DIR__ . '/../config/auth.php';
 
-// Permitir tanto JSON como datos de formulario POST tradicionales
-$input = json_decode(file_get_contents('php://input'), true);
-$cedula = trim($input['cedula'] ?? $_POST['cedula'] ?? '');
-$password = $input['password'] ?? $_POST['password'] ?? '';
+api_bootstrap(false); // pre-autenticación: aún no existe token CSRF
 
-if (empty($cedula) || empty($password)) {
-  http_response_code(400);
-  echo json_encode([
-    'success' => false,
-    'error' => 'Por favor, ingrese cédula y contraseña'
-  ]);
-  exit;
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  api_response(false, 'Método no permitido', 405);
+}
+
+// Permitir tanto JSON como datos de formulario POST tradicionales
+$input = api_get_json_input();
+$cedula = trim((string) ($input['cedula'] ?? $_POST['cedula'] ?? ''));
+$password = (string) ($input['password'] ?? $_POST['password'] ?? '');
+
+if ($cedula === '' || $password === '') {
+  api_json(['success' => false, 'error' => 'Por favor, ingrese cédula y contraseña'], 400);
 }
 
 $result = loginUser($cedula, $password);
 
 if ($result['success']) {
-  if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-  }
-  
-  $sessionId = session_id();
   $user = $result['user'];
-  
-  echo json_encode([
+  api_json([
     'success' => true,
-    'session_id' => $sessionId,
+    'session_id' => session_id(),
+    'csrf_token' => $_SESSION['csrf_token'],
     'user' => [
       'id' => $user['USRIDXXX'],
       'name' => $user['USRNMEXX'],
@@ -40,10 +36,6 @@ if ($result['success']) {
       'is_admin' => ($user['ISADMINX'] === 'SI')
     ]
   ]);
-} else {
-  http_response_code(401);
-  echo json_encode([
-    'success' => false,
-    'error' => $result['error']
-  ]);
 }
+
+api_json(['success' => false, 'error' => $result['error']], $result['status'] ?? 401);

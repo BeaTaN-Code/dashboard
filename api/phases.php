@@ -2,9 +2,8 @@
 // dashboard/api/phases.php
 // API para gestionar las fases e hitos de proyectos (solo admin)
 
-header('Content-Type: application/json');
-session_start();
-require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/api_helper.php';
+api_bootstrap();
 
 // Verificar autenticacion
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
@@ -67,8 +66,9 @@ function getPhases($pdo) {
     $phases = $stmt->fetchAll();
     echo json_encode(['success' => true, 'data' => $phases]);
   } catch (Exception $e) {
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al obtener fases: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al obtener fases']);
   }
 }
 
@@ -115,8 +115,9 @@ function createPhase($pdo, $adminId) {
     ]);
     echo json_encode(['success' => true, 'message' => 'Fase creada exitosamente', 'id' => $pdo->lastInsertId()]);
   } catch (Exception $e) {
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al crear fase: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al crear fase']);
   }
 }
 
@@ -161,8 +162,9 @@ function updatePhase($pdo, $adminId) {
     ]);
     echo json_encode(['success' => true, 'message' => 'Fase actualizada exitosamente']);
   } catch (Exception $e) {
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al actualizar fase: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al actualizar fase']);
   }
 }
 
@@ -190,7 +192,8 @@ function deletePhase($pdo, $adminId) {
     ]);
     echo json_encode(['success' => true, 'message' => 'Fase eliminada exitosamente']);
   } catch (Exception $e) {
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al eliminar fase: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al eliminar fase']);
   }
 }

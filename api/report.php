@@ -1,207 +1,112 @@
 <?php
 // dashboard/api/report.php
-// API para generar reportes mensuales financieros
+// API para generar reportes mensuales financieros (contrato histórico conservado).
 
-header('Content-Type: application/json');
-date_default_timezone_set('America/Bogota');
-session_start();
-require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/api_helper.php';
+require_once __DIR__ . '/../lib/finance.php';
+require_once __DIR__ . '/../lib/access.php';
 
-// Verificar autenticacion
-if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-  http_response_code(401);
-  echo json_encode(['success' => false, 'error' => 'No autorizado']);
-  exit;
-}
+api_bootstrap();
+$auth = api_require_auth();
+$pdo = api_db();
 
-$pdo = getDbConnection();
-if (!$pdo) {
-  http_response_code(500);
-  echo json_encode(['success' => false, 'error' => 'Error de conexion a la base de datos']);
-  exit;
-}
-
-$userId  = $_SESSION['user_id'];
-$isAdmin = $_SESSION['is_admin'] ?? false;
-
-$tipgasxx = $_GET['tipgasxx'] ?? 'PERSONAL'; // PERSONAL | BEATAN
-$month    = $_GET['month']    ?? date('Y-m'); // YYYY-MM
+$tipgasxx = valid_enum($_GET['tipgasxx'] ?? 'PERSONAL', ACCOUNTS) ?? 'PERSONAL';
+$month = valid_month($_GET['month'] ?? '') ?? date('Y-m');
 
 // Seguridad: usuarios normales solo pueden ver PERSONAL
-if ($tipgasxx === 'BEATAN' && !$isAdmin) {
-  http_response_code(403);
-  echo json_encode(['success' => false, 'error' => 'No autorizado']);
-  exit;
+if ($tipgasxx === 'BEATAN' && !$auth['is_admin']) {
+  api_response(false, 'No autorizado', 403);
 }
 
-// Calcular mes anterior
-$monthDate     = $month . '-01';
-$prevMonthDate = date('Y-m', strtotime($monthDate . ' -1 month'));
+[$from, $to] = month_bounds($month);
+$prevMonth = date('Y-m', strtotime($from . ' -1 month'));
+[$prevFrom, $prevTo] = month_bounds($prevMonth);
+$scope = fin_scope($tipgasxx, $auth['is_admin'], $auth['user_id']);
+[$where, $params] = $scope;
 
 try {
+  $rows = fin_fetch_rows($pdo, $scope, $from, $to);
+  $prevRows = fin_fetch_rows($pdo, $scope, $prevFrom, $prevTo);
+  $t = fin_totals($rows);
+  $p = fin_totals($prevRows);
 
-  // ─── 1. RESUMEN DEL MES ACTUAL ────────────────────────────────────────────
-  $sqlResumen = "
-    SELECT
-      COALESCE(SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END), 0)        AS ingresos,
-      COALESCE(SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END), 0)   AS gastos,
-      COUNT(*)                                                                    AS total_movimientos
-    FROM FINANCIX
-    WHERE REGESTXX = 'ACTIVO'
-      AND DATE_FORMAT(FINCFECX, '%Y-%m') = :month
-      AND TIPGASXX = :tipgasxx
-  ";
-  $paramsResumen = [':month' => $month, ':tipgasxx' => $tipgasxx];
-  if ($tipgasxx !== 'BEATAN' || !$isAdmin) {
-    $sqlResumen .= " AND USRIDXXX = :userId";
-    $paramsResumen[':userId'] = $userId;
+  // Detalle por categoría
+  $cats = [];
+  foreach ($rows as $r) {
+    $c = $r['cat'];
+    if (!isset($cats[$c]))
+      $cats[$c] = ['CATGASXX' => $c, 'ingresos' => 0, 'gastos' => 0, 'movimientos' => 0];
+    if ($r['cents'] > 0)
+      $cats[$c]['ingresos'] += $r['cents'];
+    else
+      $cats[$c]['gastos'] += -$r['cents'];
+    $cats[$c]['movimientos']++;
   }
+  usort($cats, fn($a, $b) => [$b['gastos'], $b['ingresos']] <=> [$a['gastos'], $a['ingresos']]);
+  $categorias = array_map(fn($c) => [
+    'CATGASXX' => $c['CATGASXX'],
+    'ingresos' => cents_to_float($c['ingresos']),
+    'gastos' => cents_to_float($c['gastos']),
+    'movimientos' => $c['movimientos'],
+  ], $cats);
 
-  $stmt = $pdo->prepare($sqlResumen);
-  $stmt->execute($paramsResumen);
-  $resumen = $stmt->fetch();
+  $movimientos = array_map(fn($r) => [
+    'FINCTIDX' => $r['id'],
+    'FINCFECX' => $r['date'],
+    'CATGASXX' => $r['cat'],
+    'DESGASXX' => $r['desc'],
+    'MONTGASX' => cents_to_decimal($r['cents']),
+  ], $rows);
 
-  $ingresos = floatval($resumen['ingresos']);
-  $gastos   = floatval($resumen['gastos']);
-  $balance  = $ingresos - $gastos;
-
-  // ─── 2. RESUMEN MES ANTERIOR (para % variacion) ───────────────────────────
-  $sqlPrev = "
-    SELECT
-      COALESCE(SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END), 0)      AS ingresos,
-      COALESCE(SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END), 0) AS gastos
-    FROM FINANCIX
-    WHERE REGESTXX = 'ACTIVO'
-      AND DATE_FORMAT(FINCFECX, '%Y-%m') = :month
-      AND TIPGASXX = :tipgasxx
-  ";
-  $paramsPrev = [':month' => $prevMonthDate, ':tipgasxx' => $tipgasxx];
-  if ($tipgasxx !== 'BEATAN' || !$isAdmin) {
-    $sqlPrev .= " AND USRIDXXX = :userId";
-    $paramsPrev[':userId'] = $userId;
-  }
-
-  $stmt = $pdo->prepare($sqlPrev);
-  $stmt->execute($paramsPrev);
-  $prevData = $stmt->fetch();
-
-  $prevIngresos = floatval($prevData['ingresos']);
-  $prevGastos   = floatval($prevData['gastos']);
-  $prevBalance  = $prevIngresos - $prevGastos;
-
-  // Calcular variaciones porcentuales
-  $varIngresos = ($prevIngresos > 0) ? round((($ingresos - $prevIngresos) / $prevIngresos) * 100, 1) : null;
-  $varGastos   = ($prevGastos   > 0) ? round((($gastos   - $prevGastos)   / $prevGastos)   * 100, 1) : null;
-  $varBalance  = ($prevBalance  != 0) ? round((($balance  - $prevBalance)  / abs($prevBalance)) * 100, 1) : null;
-
-  // ─── 3. DETALLE POR CATEGORIA ─────────────────────────────────────────────
-  $sqlCat = "
-    SELECT
-      CATGASXX,
-      COALESCE(SUM(CASE WHEN MONTGASX > 0 THEN MONTGASX ELSE 0 END), 0)      AS ingresos,
-      COALESCE(SUM(CASE WHEN MONTGASX < 0 THEN ABS(MONTGASX) ELSE 0 END), 0) AS gastos,
-      COUNT(*) AS movimientos
-    FROM FINANCIX
-    WHERE REGESTXX = 'ACTIVO'
-      AND DATE_FORMAT(FINCFECX, '%Y-%m') = :month
-      AND TIPGASXX = :tipgasxx
-  ";
-  $paramsCat = [':month' => $month, ':tipgasxx' => $tipgasxx];
-  if ($tipgasxx !== 'BEATAN' || !$isAdmin) {
-    $sqlCat .= " AND USRIDXXX = :userId";
-    $paramsCat[':userId'] = $userId;
-  }
-  $sqlCat .= " GROUP BY CATGASXX ORDER BY gastos DESC, ingresos DESC";
-
-  $stmt = $pdo->prepare($sqlCat);
-  $stmt->execute($paramsCat);
-  $categorias = $stmt->fetchAll();
-
-  // ─── 4. DETALLE DE MOVIMIENTOS DEL MES ───────────────────────────────────
-  $sqlMovs = "
-    SELECT FINCTIDX, FINCFECX, CATGASXX, DESGASXX, MONTGASX
-    FROM FINANCIX
-    WHERE REGESTXX = 'ACTIVO'
-      AND DATE_FORMAT(FINCFECX, '%Y-%m') = :month
-      AND TIPGASXX = :tipgasxx
-  ";
-  $paramsMovs = [':month' => $month, ':tipgasxx' => $tipgasxx];
-  if ($tipgasxx !== 'BEATAN' || !$isAdmin) {
-    $sqlMovs .= " AND USRIDXXX = :userId";
-    $paramsMovs[':userId'] = $userId;
-  }
-  $sqlMovs .= " ORDER BY FINCFECX ASC, FINCTIDX ASC";
-
-  $stmt = $pdo->prepare($sqlMovs);
-  $stmt->execute($paramsMovs);
-  $movimientos = $stmt->fetchAll();
-
-  // ─── 5. DEUDAS DEL USUARIO ────────────────────────────────────────────────
-  $sqlDeudas = "
-    SELECT DEUDIDXX, TIPDEUDX, DESDEUDX, MONDEUDX, MONCUOTX,
-           PAGCUOTX, NUMCUOTX, FECCUOTX, ABONCUOT, REGESTXX, REGFECXX
-    FROM DEUDASIX
-    WHERE TIPPERXX = :tipperxx
-      AND REGESTXX IN ('ACTIVO', 'PAGADO')
-  ";
+  // Deudas
+  $sqlDeudas = "SELECT DEUDIDXX, TIPDEUDX, DESDEUDX, MONDEUDX, MONCUOTX, PAGCUOTX, NUMCUOTX, FECCUOTX, ABONCUOT, REGESTXX, REGFECXX
+    FROM DEUDASIX WHERE TIPPERXX = :tipperxx AND REGESTXX IN ('ACTIVO', 'PAGADO')";
   $paramsDeudas = [':tipperxx' => $tipgasxx];
-  if ($tipgasxx !== 'BEATAN' || !$isAdmin) {
-    $sqlDeudas .= " AND USRIDXXX = :userId";
-    $paramsDeudas[':userId'] = $userId;
+  if (!($tipgasxx === 'BEATAN' && $auth['is_admin'])) {
+    $sqlDeudas .= ' AND USRIDXXX = :userId';
+    $paramsDeudas[':userId'] = $auth['user_id'];
   }
-  $sqlDeudas .= " ORDER BY REGESTXX ASC, DEUDIDXX DESC";
-
+  $sqlDeudas .= ' ORDER BY REGESTXX ASC, DEUDIDXX DESC';
   $stmt = $pdo->prepare($sqlDeudas);
   $stmt->execute($paramsDeudas);
   $deudas = $stmt->fetchAll();
 
-  // Separar deudas activas y pagadas
   $deudasActivas = array_values(array_filter($deudas, fn($d) => $d['REGESTXX'] === 'ACTIVO'));
   $deudasPagadas = array_values(array_filter($deudas, fn($d) => $d['REGESTXX'] === 'PAGADO'));
+  $totalContra = 0;
+  $totalFavor = 0;
+  foreach ($deudasActivas as $d) {
+    if ($d['TIPDEUDX'] === 'EN CONTRA')
+      $totalContra += db_money_to_cents($d['MONDEUDX']);
+    else
+      $totalFavor += db_money_to_cents($d['MONDEUDX']);
+  }
 
-  // Total deudas activas en contra
-  $totalDeudaContra = array_sum(array_map(
-    fn($d) => $d['TIPDEUDX'] === 'EN CONTRA' ? floatval($d['MONDEUDX']) : 0,
-    $deudasActivas
-  ));
-  $totalDeudaFavor = array_sum(array_map(
-    fn($d) => $d['TIPDEUDX'] === 'A FAVOR'   ? floatval($d['MONDEUDX']) : 0,
-    $deudasActivas
-  ));
-
-  // ─── RESPUESTA COMPLETA ────────────────────────────────────────────────────
-  echo json_encode([
+  api_json([
     'success' => true,
-    'periodo' => [
-      'month'     => $month,
-      'prevMonth' => $prevMonthDate,
-      'tipgasxx'  => $tipgasxx
-    ],
+    'periodo' => ['month' => $month, 'prevMonth' => $prevMonth, 'tipgasxx' => $tipgasxx],
     'resumen' => [
-      'ingresos'     => $ingresos,
-      'gastos'       => $gastos,
-      'balance'      => $balance,
-      'movimientos'  => intval($resumen['total_movimientos']),
-      'varIngresos'  => $varIngresos,
-      'varGastos'    => $varGastos,
-      'varBalance'   => $varBalance,
-      'prevIngresos' => $prevIngresos,
-      'prevGastos'   => $prevGastos,
-      'prevBalance'  => $prevBalance
+      'ingresos' => cents_to_float($t['income']),
+      'gastos' => cents_to_float($t['expense']),
+      'balance' => cents_to_float($t['net']),
+      'movimientos' => $t['count'],
+      'varIngresos' => pct_change($t['income'], $p['income']),
+      'varGastos' => pct_change($t['expense'], $p['expense']),
+      'varBalance' => pct_change($t['net'], $p['net']),
+      'prevIngresos' => cents_to_float($p['income']),
+      'prevGastos' => cents_to_float($p['expense']),
+      'prevBalance' => cents_to_float($p['net']),
     ],
-    'categorias'       => $categorias,
-    'movimientos'      => $movimientos,
+    'categorias' => $categorias,
+    'movimientos' => $movimientos,
     'deudas' => [
-      'activas'     => $deudasActivas,
-      'pagadas'     => $deudasPagadas,
-      'totalContra' => $totalDeudaContra,
-      'totalFavor'  => $totalDeudaFavor,
-    ]
+      'activas' => $deudasActivas,
+      'pagadas' => $deudasPagadas,
+      'totalContra' => cents_to_float($totalContra),
+      'totalFavor' => cents_to_float($totalFavor),
+    ],
   ]);
-
-} catch (Exception $e) {
-  error_log('Report error: ' . $e->getMessage());
-  http_response_code(500);
-  echo json_encode(['success' => false, 'error' => 'Error al generar el reporte']);
+} catch (PDOException $e) {
+  api_log_error('Report error', $e);
+  api_response(false, 'Error al generar el reporte', 500);
 }
-?>

@@ -1,44 +1,32 @@
 <?php
-header('Content-Type: application/json');
-session_start();
-require_once __DIR__ . '/../config/db.php';
+// dashboard/api/deudas_select.php
+// Deudas activas "de abonos libres" (sin cuotas) que pueden vincularse a un movimiento.
 
-// Verificar autenticacion
-if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-  http_response_code(401);
-  echo json_encode(['success' => false, 'error' => 'No autorizado']);
-  exit;
-}
+require_once __DIR__ . '/../config/api_helper.php';
+require_once __DIR__ . '/../lib/validation.php';
 
-$pdo = getDbConnection();
-if (!$pdo) {
-  http_response_code(500);
-  echo json_encode(['success' => false, 'error' => 'Error de conexion a la base de datos']);
-  exit;
-}
+api_bootstrap();
+$auth = api_require_auth();
+$pdo = api_db();
 
-$method = $_SERVER['REQUEST_METHOD'];
-$userId = $_SESSION['user_id'];
-$isAdmin = $_SESSION['is_admin'] ?? false;
-
-$stmt = $pdo->prepare("
-  SELECT DISTINCT
-    D.DEUDIDXX,
-    D.DESDEUDX,
-    D.USRIDXXX
+$sql = "SELECT D.DEUDIDXX, D.DESDEUDX, D.USRIDXXX, D.TIPDEUDX, D.TIPPERXX
   FROM DEUDASIX D
-  WHERE D.REGESTXX = 'ACTIVO'
-    AND D.NUMCUOTX IS NULL
-    AND D.USRIDXXX = :usrid
-  ORDER BY D.DEUDIDXX ASC
-");
+  WHERE D.REGESTXX = 'ACTIVO' AND D.NUMCUOTX IS NULL";
+$params = [];
+$account = valid_enum($_GET['tipperxx'] ?? '', ACCOUNTS);
+if ($account === 'BEATAN' && $auth['is_admin']) {
+  $sql .= " AND D.TIPPERXX = 'BEATAN'";
+} else {
+  $sql .= ' AND D.USRIDXXX = :usrid';
+  $params[':usrid'] = $auth['user_id'];
+  if ($account) {
+    $sql .= ' AND D.TIPPERXX = :acc';
+    $params[':acc'] = $account;
+  }
+}
+$sql .= ' ORDER BY D.DEUDIDXX ASC';
 
-$stmt->bindParam(':usrid', $userId, PDO::PARAM_INT);
-$stmt->execute();
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 
-$data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-echo json_encode([
-  'success' => true,
-  'data' => $data
-]);
+api_json(['success' => true, 'data' => $stmt->fetchAll()]);

@@ -2,14 +2,20 @@
 // dashboard/api/messages.php
 // API para gestionar mensajes del formulario
 
-header('Content-Type: application/json');
-session_start();
-require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/api_helper.php';
+api_bootstrap();
 
 // Verificar autenticación
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
   http_response_code(401);
   echo json_encode(['success' => false, 'error' => 'No autorizado']);
+  exit;
+}
+
+// Los mensajes del formulario de contacto contienen datos personales: solo administradores.
+if (($_SESSION['is_admin'] ?? false) !== true) {
+  http_response_code(403);
+  echo json_encode(['success' => false, 'error' => 'Acceso denegado. Se requiere rol de administrador']);
   exit;
 }
 
@@ -111,7 +117,7 @@ function updateMessageStatus($pdo, $userId)
 
     $stmt->execute([
       ':estado' => $estado,
-      ':userId' => $userId,
+      ':userId' => (string) $userId,
       ':id' => $id
     ]);
 

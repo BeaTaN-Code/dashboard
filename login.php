@@ -1,7 +1,9 @@
 <?php
 // dashboard/login.php
-session_start();
 require_once __DIR__ . '/config/auth.php';
+
+app_send_security_headers(false);
+app_start_session();
 
 $error = '';
 $success = '';
@@ -12,117 +14,94 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
   exit;
 }
 
-// Procesar login
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $cedula = trim($_POST['cedula'] ?? '');
   $password = $_POST['password'] ?? '';
 
-  if (empty($cedula) || empty($password)) {
+  if (!app_csrf_valid($_POST['csrf_token'] ?? null)) {
+    $error = 'La página estuvo abierta mucho tiempo. Inténtalo de nuevo.';
+  } elseif ($cedula === '' || $password === '') {
     $error = 'Por favor complete todos los campos';
   } else {
     $result = loginUser($cedula, $password);
-
     if ($result['success']) {
       header('Location: index.php');
       exit;
-    } else {
-      $error = $result['error'];
     }
+    $error = $result['error'];
   }
 }
 
-// Mensaje de registro exitoso
 if (isset($_GET['registered']) && $_GET['registered'] === '1') {
-  $success = 'Registro exitoso. Por favor inicie sesión.';
+  $success = 'Registro exitoso. Ya puedes iniciar sesión.';
 }
+$csrf = app_csrf_token();
 ?>
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es-CO">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Iniciar Sesión - BeaTaNCode Dashboard</title>
-  <link rel="stylesheet" href="css/dashboard.css">
+  <meta name="color-scheme" content="light dark">
+  <title>Iniciar sesión · BeaTaN</title>
   <link rel="icon" type="image/png" href="img/Logo.png">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&display=swap" rel="stylesheet">
+  <script>try { var t = localStorage.getItem('beatan_theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) { }</script>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="css/dashboard.css?v=<?= @filemtime(__DIR__ . '/css/dashboard.css') ?>">
 </head>
 
 <body class="auth-body">
-  <div class="auth-container">
+  <main class="auth-container">
     <div class="auth-card">
       <div class="auth-header">
-        <img src="img/Logo.png" alt="Logo BeaTaNCode" class="auth-logo">
-        <h1>Iniciar Sesión</h1>
-        <p>Accede a tu panel de control</p>
+        <img src="img/Logo.png" alt="BeaTaN" class="auth-logo" width="56" height="56">
+        <h1>Bienvenido de nuevo</h1>
+        <p>Inicia sesión para ver tus finanzas</p>
       </div>
 
       <?php if ($error): ?>
-        <div class="alert alert-error">
-          <i class="bi bi-exclamation-triangle"></i>
-          <?php echo htmlspecialchars($error); ?>
-        </div>
+        <div class="alert alert-error" role="alert"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span><?= htmlspecialchars($error) ?></span></div>
       <?php endif; ?>
-
       <?php if ($success): ?>
-        <div class="alert alert-success">
-          <i class="bi bi-check-circle"></i>
-          <?php echo htmlspecialchars($success); ?>
-        </div>
+        <div class="alert alert-success" role="status"><i class="bi bi-check-circle" aria-hidden="true"></i><span><?= htmlspecialchars($success) ?></span></div>
       <?php endif; ?>
 
-      <form method="POST" class="auth-form">
-        <div class="form-group">
-          <label for="cedula">
-            <i class="bi bi-person-badge"></i>
-            Cédula
-          </label>
-          <input type="text" id="cedula" name="cedula" placeholder="Ingresa tu cédula"
-            value="<?php echo htmlspecialchars($_POST['cedula'] ?? ''); ?>" required>
+      <form method="POST" class="auth-form" novalidate>
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <div class="field">
+          <label for="cedula">Cédula</label>
+          <input class="input" type="text" id="cedula" name="cedula" inputmode="numeric" autocomplete="username" required
+            value="<?= htmlspecialchars($_POST['cedula'] ?? '') ?>" <?= $error ? '' : 'autofocus' ?>>
         </div>
-
-        <div class="form-group">
-          <label for="password">
-            <i class="bi bi-lock"></i>
-            Contraseña
-          </label>
+        <div class="field">
+          <label for="password">Contraseña</label>
           <div class="password-input">
-            <input type="password" id="password" name="password" placeholder="Ingresa tu contraseña" required>
-            <button type="button" class="toggle-password" onclick="togglePassword('password')">
-              <i class="bi bi-eye"></i>
-            </button>
+            <input class="input" type="password" id="password" name="password" autocomplete="current-password" required <?= $error ? 'autofocus' : '' ?>>
+            <button type="button" class="toggle-password" data-toggle="password" aria-label="Mostrar contraseña" aria-pressed="false"><i class="bi bi-eye" aria-hidden="true"></i></button>
           </div>
         </div>
-
-        <button type="submit" class="btn-primary">
-          <i class="bi bi-box-arrow-in-right"></i>
-          Iniciar Sesión
-        </button>
+        <button type="submit" class="btn-primary btn-block">Iniciar sesión</button>
       </form>
 
       <div class="auth-footer">
-        <p>¿No tienes cuenta? <a href="register.php">Regístrate aquí</a></p>
+        <p>¿No tienes cuenta? <a href="register.php">Regístrate</a></p>
       </div>
     </div>
-  </div>
-
+    <p class="auth-legal">Tus datos financieros están protegidos y solo tú puedes verlos.</p>
+  </main>
   <script>
-    function togglePassword(inputId) {
-      const input = document.getElementById(inputId);
-      const icon = input.parentElement.querySelector('.toggle-password i');
-
-      if (input.type === 'password') {
-        input.type = 'text';
-        icon.classList.remove('bi-eye');
-        icon.classList.add('bi-eye-slash');
-      } else {
-        input.type = 'password';
-        icon.classList.remove('bi-eye-slash');
-        icon.classList.add('bi-eye');
-      }
-    }
+    document.querySelectorAll('[data-toggle]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var input = document.getElementById(btn.dataset.toggle);
+        var show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        btn.setAttribute('aria-pressed', String(show));
+        btn.setAttribute('aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña');
+        btn.querySelector('i').className = 'bi ' + (show ? 'bi-eye-slash' : 'bi-eye');
+      });
+    });
   </script>
 </body>
 

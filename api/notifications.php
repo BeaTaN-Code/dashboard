@@ -2,9 +2,8 @@
 // dashboard/api/notifications.php
 // API para gestionar notificaciones push
 
-header('Content-Type: application/json');
-session_start();
-require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/api_helper.php';
+api_bootstrap();
 
 // Verificar autenticacion
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
@@ -62,9 +61,9 @@ try {
       'id' => 'expense_' . $expense['FINCTIDX'],
       'type' => $tipoNotificacion,
       'urgency' => $urgency,
-      'title' => 'Gasto Proximo' . $tituloAdicional,
-      'message' => htmlspecialchars($expense['CATGASXX']) . ': $' . number_format(abs($expense['MONTGASX']), 2),
-      'detail' => htmlspecialchars($expense['DESGASXX'] ?? ''),
+      'title' => 'Gasto próximo' . $tituloAdicional,
+      'message' => $expense['CATGASXX'] . ': $' . number_format(abs($expense['MONTGASX']), 2),
+      'detail' => ($expense['DESGASXX'] ?? ''),
       'date' => date('d/m/Y', strtotime($expense['FINCFECX'])),
       'daysUntil' => $daysUntil,
       'icon' => 'bi-cash-coin'
@@ -88,8 +87,8 @@ try {
         'type' => 'message',
         'urgency' => 'info',
         'title' => 'Nuevo Mensaje',
-        'message' => htmlspecialchars($message['NOMBRE']),
-        'detail' => htmlspecialchars($message['ASUNTO'] ?? 'Sin asunto'),
+        'message' => $message['NOMBRE'],
+        'detail' => ($message['ASUNTO'] ?? 'Sin asunto'),
         'date' => date('d/m/Y H:i', strtotime($message['HORCREA'])),
         'icon' => 'bi-envelope'
       ];
@@ -112,9 +111,9 @@ try {
       'id' => 'balance_negative',
       'type' => 'alert',
       'urgency' => 'danger',
-      'title' => 'Balance Negativo',
-      'message' => 'Tu balance personal es negativo',
-      'detail' => 'Balance actual: $' . number_format($balance['balance'], 2),
+      'title' => 'Saldo negativo',
+      'message' => 'Tu saldo personal está en negativo',
+      'detail' => 'Saldo actual: $' . number_format($balance['balance'], 2),
       'date' => date('d/m/Y'),
       'icon' => 'bi-exclamation-triangle'
     ];

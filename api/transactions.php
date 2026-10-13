@@ -1,420 +1,355 @@
 <?php
 // dashboard/api/transactions.php
-// API para gestionar transacciones financieras
+// API para gestionar transacciones financieras.
+// Contrato histórico conservado: GET devuelve {data, balance:{total,income,expense}}; POST acepta
+// movimientos individuales y {action:'bulk_import', items:[...]}; PUT edita; DELETE ?id= borra (lógico).
 
-header('Content-Type: application/json');
-date_default_timezone_set('America/Bogota');
-session_start();
-require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/api_helper.php';
+require_once __DIR__ . '/../lib/finance.php';
+require_once __DIR__ . '/../lib/access.php';
 
-// Verificar autenticacion
-if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-  http_response_code(401);
-  echo json_encode(['success' => false, 'error' => 'No autorizado']);
-  exit;
+api_bootstrap();
+$auth = api_require_auth();
+$pdo = api_db();
+
+const BULK_MAX_ITEMS = 1000;
+
+try {
+  switch ($_SERVER['REQUEST_METHOD']) {
+    case 'GET':
+      getTransactions($pdo, $auth);
+      break;
+    case 'POST':
+      $input = api_get_json_input();
+      $action = $input['action'] ?? '';
+      if ($action === 'bulk_import')
+        bulkImport($pdo, $auth, $input);
+      elseif ($action === 'restore')
+        restoreTransaction($pdo, $auth, $input);
+      else
+        addTransaction($pdo, $auth, $input);
+      break;
+    case 'PUT':
+      updateTransaction($pdo, $auth);
+      break;
+    case 'DELETE':
+      deleteTransaction($pdo, $auth);
+      break;
+    default:
+      api_response(false, 'Método no permitido', 405);
+  }
+} catch (PDOException $e) {
+  if ($pdo->inTransaction())
+    $pdo->rollBack();
+  api_log_error('Transactions error', $e);
+  api_response(false, 'No se pudo completar la operación con los movimientos', 500);
 }
 
-$pdo = getDbConnection();
-if (!$pdo) {
-  http_response_code(500);
-  echo json_encode(['success' => false, 'error' => 'Error de conexion a la base de datos']);
-  exit;
-}
-
-$method = $_SERVER['REQUEST_METHOD'];
-$userId = $_SESSION['user_id'];
-$isAdmin = $_SESSION['is_admin'] ?? false;
-
-switch ($method) {
-  case 'GET':
-    getTransactions($pdo, $userId, $isAdmin);
-    break;
-  case 'POST':
-    addTransaction($pdo, $userId);
-    break;
-  case 'PUT':
-    updateTransaction($pdo, $userId, $isAdmin);
-    break;
-  case 'DELETE':
-    deleteTransaction($pdo, $userId, $isAdmin);
-    break;
-  default:
-    http_response_code(405);
-    echo json_encode(['success' => false, 'error' => 'Metodo no permitido']);
-}
-
-function getTransactions($pdo, $userId, $isAdmin)
+function getTransactions(PDO $pdo, array $auth): void
 {
-  $tipgasxx  = $_GET['tipgasxx']  ?? '';
-  $tipo      = $_GET['tipo']      ?? '';
-  $month     = $_GET['month']     ?? '';
-  $categoria = $_GET['categoria'] ?? ''; // Filtro por categoria
-  $search    = $_GET['search']    ?? ''; // Busqueda en descripcion
-
-  // Fecha actual para filtrar balances
+  $tipgasxx = valid_enum($_GET['tipgasxx'] ?? '', ACCOUNTS) ?? '';
+  $tipo = valid_enum($_GET['tipo'] ?? '', ['INGRESO', 'GASTO']) ?? '';
+  $month = valid_month($_GET['month'] ?? '') ?? '';
+  $from = valid_date($_GET['from'] ?? '') ?? '';
+  $to = valid_date($_GET['to'] ?? '') ?? '';
+  $categoria = clean_text($_GET['categoria'] ?? '', 30);
+  $search = clean_text($_GET['search'] ?? '', 100);
   $today = date('Y-m-d');
 
-  try {
-    // Query base - solo transacciones activas
-    $sql = "SELECT * FROM FINANCIX WHERE REGESTXX = 'ACTIVO'";
-    $params = [];
-
-    // Solo filtrar por usuario si NO es BEATAN o si no es admin
-    if ($tipgasxx !== 'BEATAN' || !$isAdmin) {
-      $sql .= " AND USRIDXXX = :userId";
-      $params[':userId'] = $userId;
-    }
-
-    // Filtrar por tipo de cuenta (BEATAN o PERSONAL)
-    if (!empty($tipgasxx)) {
-      $sql .= " AND TIPGASXX = :tipgasxx";
-      $params[':tipgasxx'] = $tipgasxx;
-    }
-
-    // Filtrar por tipo de movimiento (INGRESO o GASTO)
-    if (!empty($tipo)) {
-      if ($tipo === 'INGRESO') {
-        $sql .= " AND MONTGASX > 0";
-      } else {
-        $sql .= " AND MONTGASX < 0";
-      }
-    }
-
-    // Filtrar por mes si se especifica
-    if (!empty($month)) {
-      $sql .= " AND DATE_FORMAT(FINCFECX, '%Y-%m') = :month";
-      $params[':month'] = $month;
-    }
-
-    // Filtrar por categoria
-    if (!empty($categoria)) {
-      $sql .= " AND CATGASXX = :categoria";
-      $params[':categoria'] = $categoria;
-    }
-
-    // Busqueda de texto en descripcion
-    if (!empty($search)) {
-      $sql .= " AND DESGASXX LIKE :search";
-      $params[':search'] = '%' . $search . '%';
-    }
-
-    $sql .= " ORDER BY FINCFECX ASC";
-
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $transactions = $stmt->fetchAll();
-
-    // Calcular balances (solo transacciones hasta el dia actual)
-    $balanceSql = "SELECT 
-            COALESCE(SUM(CASE WHEN MONTGASX > 0 AND FINCFECX <= :today THEN MONTGASX ELSE 0 END), 0) as income,
-            COALESCE(SUM(CASE WHEN MONTGASX < 0 AND FINCFECX <= :today2 THEN ABS(MONTGASX) ELSE 0 END), 0) as expense
-            FROM FINANCIX 
-            WHERE REGESTXX = 'ACTIVO'";
-
-    $balanceParams = [
-      ':today' => $today,
-      ':today2' => $today
-    ];
-
-    // Solo filtrar por usuario si NO es BEATAN o si no es admin
-    if ($tipgasxx !== 'BEATAN' || !$isAdmin) {
-      $balanceSql .= " AND USRIDXXX = :userId";
-      $balanceParams[':userId'] = $userId;
-    }
-
-    if (!empty($tipgasxx)) {
-      $balanceSql .= " AND TIPGASXX = :tipgasxx";
-      $balanceParams[':tipgasxx'] = $tipgasxx;
-    }
-
-    $stmt = $pdo->prepare($balanceSql);
-    $stmt->execute($balanceParams);
-    $balance = $stmt->fetch();
-
-    $income = floatval($balance['income'] ?? 0);
-    $expense = floatval($balance['expense'] ?? 0);
-    $total = $income - $expense;
-
-    echo json_encode([
-      'success' => true,
-      'data' => $transactions,
-      'balance' => [
-        'total' => $total,
-        'income' => $income,
-        'expense' => $expense
-      ]
-    ]);
-
-  } catch (Exception $e) {
-    error_log('Get transactions error: ' . $e->getMessage());
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al obtener transacciones']);
+  // Alcance: solo los propios, salvo administradores sobre la cuenta BEATAN (compartida).
+  $where = "F.REGESTXX = 'ACTIVO'";
+  $params = [];
+  if (!($tipgasxx === 'BEATAN' && $auth['is_admin'])) {
+    $where .= ' AND F.USRIDXXX = :userId';
+    $params[':userId'] = $auth['user_id'];
   }
+  if ($tipgasxx !== '') {
+    $where .= ' AND F.TIPGASXX = :tipgasxx';
+    $params[':tipgasxx'] = $tipgasxx;
+  }
+  $scopeWhere = $where;
+  $scopeParams = $params;
+
+  if ($tipo === 'INGRESO')
+    $where .= ' AND F.MONTGASX > 0';
+  elseif ($tipo === 'GASTO')
+    $where .= ' AND F.MONTGASX < 0';
+
+  // Rango de fechas (usa el índice en vez de DATE_FORMAT). 'month' se mantiene por compatibilidad.
+  if ($month !== '') {
+    [$from, $to] = month_bounds($month);
+  }
+  if ($from !== '') {
+    $where .= ' AND F.FINCFECX >= :from';
+    $params[':from'] = $from;
+  }
+  if ($to !== '') {
+    $where .= ' AND F.FINCFECX <= :to';
+    $params[':to'] = $to;
+  }
+  if ($categoria !== '') {
+    $where .= ' AND F.CATGASXX = :categoria';
+    $params[':categoria'] = $categoria;
+  }
+  if ($search !== '') {
+    $where .= " AND (F.DESGASXX LIKE :search ESCAPE '!' OR F.CATGASXX LIKE :search2 ESCAPE '!')";
+    $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $search) . '%';
+    $params[':search'] = $like;
+    $params[':search2'] = $like;
+  }
+
+  $stmt = $pdo->prepare("SELECT F.*, D.DESDEUDX FROM FINANCIX F
+    LEFT JOIN DEUDASIX D ON D.DEUDIDXX = F.DEUDIDXX
+    WHERE $where ORDER BY F.FINCFECX ASC, F.FINCTIDX ASC");
+  $stmt->execute($params);
+  $transactions = $stmt->fetchAll();
+  foreach ($transactions as &$t) {
+    $t['MONTO_CENTS'] = db_money_to_cents($t['MONTGASX']);
+  }
+  unset($t);
+
+  // Balance histórico hasta hoy (regla original: los movimientos futuros no cuentan).
+  $balStmt = $pdo->prepare("SELECT
+      COALESCE(SUM(CASE WHEN F.MONTGASX > 0 THEN F.MONTGASX ELSE 0 END), 0) AS income,
+      COALESCE(SUM(CASE WHEN F.MONTGASX < 0 THEN -F.MONTGASX ELSE 0 END), 0) AS expense
+    FROM FINANCIX F WHERE $scopeWhere AND F.FINCFECX <= :today");
+  $balStmt->execute($scopeParams + [':today' => $today]);
+  $bal = $balStmt->fetch();
+  $income = db_money_to_cents($bal['income']);
+  $expense = db_money_to_cents($bal['expense']);
+
+  // Totales del filtro actual (separando lo realizado de lo programado)
+  $sums = ['realized' => ['income' => 0, 'expense' => 0], 'scheduled' => ['income' => 0, 'expense' => 0]];
+  foreach ($transactions as $t) {
+    $bucket = $t['FINCFECX'] <= $today ? 'realized' : 'scheduled';
+    $c = $t['MONTO_CENTS'];
+    if ($c > 0)
+      $sums[$bucket]['income'] += $c;
+    else
+      $sums[$bucket]['expense'] += -$c;
+  }
+
+  // Categorías usadas por el usuario en la cuenta (para autocompletar)
+  $catStmt = $pdo->prepare("SELECT DISTINCT F.CATGASXX FROM FINANCIX F WHERE $scopeWhere AND F.CATGASXX IS NOT NULL AND F.CATGASXX <> '' ORDER BY F.CATGASXX");
+  $catStmt->execute($scopeParams);
+
+  api_json([
+    'success' => true,
+    'data' => $transactions,
+    'balance' => [
+      'total' => cents_to_float($income - $expense),
+      'income' => cents_to_float($income),
+      'expense' => cents_to_float($expense),
+    ],
+    'balance_cents' => ['total' => $income - $expense, 'income' => $income, 'expense' => $expense],
+    'filtered_cents' => $sums + ['count' => count($transactions)],
+    'categories' => array_column($catStmt->fetchAll(), 'CATGASXX'),
+    'today' => $today,
+  ]);
 }
 
-function addTransaction($pdo, $userId)
+function assertCanWriteAccount(array $auth, ?string $account): void
 {
-  $input = json_decode(file_get_contents('php://input'), true);
-
-  // Manejar importación masiva (bulk_import)
-  if (isset($input['action']) && $input['action'] === 'bulk_import' && !empty($input['items']) && is_array($input['items'])) {
-    try {
-      $pdo->beginTransaction();
-      $insertedCount = 0;
-
-      $stmt = $pdo->prepare("
-        INSERT INTO FINANCIX (USRIDXXX, DEUDIDXX, TIPGASXX, MONTGASX, CATGASXX, DESGASXX, FINCFECX, REGUSRXX, REGFECXX, REGHORXX, REGESTXX, REGSTAMP)
-        VALUES (:userId, NULL, :tipgasxx, :monto, :categoria, :descripcion, :fecha, :userId, CURDATE(), CURTIME(), 'ACTIVO', NOW())
-      ");
-
-      foreach ($input['items'] as $item) {
-        $tipgasxx = $item['tipgasxx'] ?? 'PERSONAL';
-        $monto = floatval($item['monto'] ?? 0);
-        $categoria = !empty($item['categoria']) ? $item['categoria'] : 'Varios';
-        $descripcion = trim($item['descripcion'] ?? 'Importado de extracto');
-        $fecha = $item['fecha'] ?? date('Y-m-d');
-        $tipo = $item['tipo'] ?? ($monto < 0 ? 'GASTO' : 'INGRESO');
-
-        if ($tipo === 'GASTO') {
-          $monto = -abs($monto);
-        } else {
-          $monto = abs($monto);
-        }
-
-        if ($monto == 0 || empty($fecha)) {
-          continue; // Omitir registros inválidos
-        }
-
-        $stmt->execute([
-          ':userId' => $userId,
-          ':tipgasxx' => $tipgasxx,
-          ':monto' => $monto,
-          ':categoria' => $categoria,
-          ':descripcion' => $descripcion,
-          ':fecha' => $fecha
-        ]);
-        $insertedCount++;
-      }
-
-      $pdo->commit();
-
-      echo json_encode([
-        'success' => true,
-        'message' => "Se importaron $insertedCount transacciones exitosamente",
-        'count' => $insertedCount
-      ]);
-      return;
-
-    } catch (Exception $e) {
-      if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-      }
-      error_log('Bulk import transactions error: ' . $e->getMessage());
-      http_response_code(500);
-      echo json_encode(['success' => false, 'error' => 'Error al importar transacciones en lote: ' . $e->getMessage()]);
-      return;
-    }
-  }
-
-  $deudidxx = $input['deudidxx'] ?? null;
-  $tipgasxx = $input['tipgasxx'] ?? '';
-  $tipo = $input['tipo'] ?? '';
-  $monto = floatval($input['monto'] ?? 0);
-  $categoria = $input['categoria'] ?? '';
-  $descripcion = $input['descripcion'] ?? '';
-  $fecha = $input['fecha'] ?? date('Y-m-d');
-
-  if ($deudidxx === '' || $deudidxx === 0) {
-    $deudidxx = null;
-  }
-
-  // Validaciones
-  if (empty($tipgasxx) || empty($tipo) || $monto <= 0 || empty($categoria) || empty($fecha)) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Datos incompletos']);
-    return;
-  }
-
-  // Si es gasto, el monto debe ser negativo
-  if ($tipo === 'GASTO') {
-    $monto = -abs($monto);
-  } else {
-    $monto = abs($monto);
-  }
-
-  try {
-    $stmt = $pdo->prepare("
-            INSERT INTO FINANCIX (USRIDXXX, DEUDIDXX, TIPGASXX, MONTGASX, CATGASXX, DESGASXX, FINCFECX, REGUSRXX, REGFECXX, REGHORXX, REGESTXX, REGSTAMP)
-            VALUES (:userId, :deudidxx, :tipgasxx, :monto, :categoria, :descripcion, :fecha, :userId, CURDATE(), CURTIME(), 'ACTIVO', NOW())
-        ");
-
-    $stmt->execute([
-      ':userId' => $userId,
-      ':deudidxx' => $deudidxx,
-      ':tipgasxx' => $tipgasxx,
-      ':monto' => $monto,
-      ':categoria' => $categoria,
-      ':descripcion' => $descripcion,
-      ':fecha' => $fecha
-    ]);
-
-    $newId = $pdo->lastInsertId();
-
-    echo json_encode([
-      'success' => true,
-      'message' => 'Transaccion agregada exitosamente',
-      'id' => $newId
-    ]);
-
-  } catch (Exception $e) {
-    error_log('Add transaction error: ' . $e->getMessage());
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al agregar transaccion']);
+  if ($account === 'BEATAN' && !$auth['is_admin']) {
+    api_response(false, 'Solo los administradores pueden registrar movimientos de la empresa', 403);
   }
 }
 
-function updateTransaction($pdo, $userId, $isAdmin)
+function addTransaction(PDO $pdo, array $auth, array $input): void
 {
-  $input = json_decode(file_get_contents('php://input'), true);
-
-  $id = intval($input['id'] ?? 0);
-  $tipo = $input['tipo'] ?? '';
-  $deudidxx = $input['deudidxx'] ?? null;
-  $monto = floatval($input['monto'] ?? 0);
-  $categoria = $input['categoria'] ?? '';
-  $descripcion = $input['descripcion'] ?? '';
-  $fecha = $input['fecha'] ?? '';
-
-  if ($deudidxx === '' || $deudidxx === 0) {
-    $deudidxx = null;
+  api_idempotent_replay('tx_add');
+  [$tx, $errors] = validate_transaction_input($input);
+  if ($errors) {
+    api_response(false, implode('. ', $errors), 422, ['errors' => $errors]);
+  }
+  assertCanWriteAccount($auth, $tx['tipgasxx']);
+  if ($tx['deudidxx'] !== null && !debt_belongs_to($pdo, $tx['deudidxx'], $auth, $tx['tipgasxx'])) {
+    api_response(false, 'La deuda asociada no existe o no te pertenece', 422);
   }
 
-  if ($id <= 0) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'ID invalido']);
-    return;
-  }
+  [$d, $h] = audit_now();
+  $stmt = $pdo->prepare("INSERT INTO FINANCIX (USRIDXXX, DEUDIDXX, TIPGASXX, MONTGASX, CATGASXX, DESGASXX, FINCFECX, REGUSRXX, REGFECXX, REGHORXX, REGESTXX, REGSTAMP)
+    VALUES (:userId, :deudidxx, :tipgasxx, :monto, :categoria, :descripcion, :fecha, :userId2, :d, :h, 'ACTIVO', :stamp)");
+  $stmt->execute([
+    ':userId' => $auth['user_id'],
+    ':deudidxx' => $tx['deudidxx'],
+    ':tipgasxx' => $tx['tipgasxx'],
+    ':monto' => cents_to_decimal($tx['cents']),
+    ':categoria' => $tx['categoria'],
+    ':descripcion' => $tx['descripcion'],
+    ':fecha' => $tx['fecha'],
+    ':userId2' => $auth['user_id'],
+    ':d' => $d,
+    ':h' => $h,
+    ':stamp' => "$d $h",
+  ]);
 
-  // Si es gasto, el monto debe ser negativo
-  if ($tipo === 'GASTO') {
-    $monto = -abs($monto);
-  } else {
-    $monto = abs($monto);
-  }
-
-  try {
-    // Verificar que la transaccion pertenece al usuario o es admin con BEATAN
-    $stmt = $pdo->prepare("SELECT FINCTIDX, TIPGASXX, USRIDXXX FROM FINANCIX WHERE FINCTIDX = :id");
-    $stmt->execute([':id' => $id]);
-    $transaction = $stmt->fetch();
-
-    if (!$transaction) {
-      http_response_code(404);
-      echo json_encode(['success' => false, 'error' => 'Transaccion no encontrada']);
-      return;
-    }
-
-    // Permitir edicion si es el dueno o si es admin y es BEATAN
-    $canEdit = ($transaction['USRIDXXX'] == $userId) || ($isAdmin && $transaction['TIPGASXX'] === 'BEATAN');
-
-    if (!$canEdit) {
-      http_response_code(403);
-      echo json_encode(['success' => false, 'error' => 'No tiene permiso para editar esta transaccion']);
-      return;
-    }
-
-    $stmt = $pdo->prepare("
-            UPDATE FINANCIX 
-            SET DEUDIDXX = :deudidxx,
-                MONTGASX = :monto, 
-                CATGASXX = :categoria, 
-                DESGASXX = :descripcion, 
-                FINCFECX = :fecha,
-                REGUSRMX = :userId,
-                REGFECMX = CURDATE(),
-                REGHORMX = CURTIME(),
-                REGSTAMP = NOW()
-            WHERE FINCTIDX = :id
-        ");
-
-    $stmt->execute([
-      ':deudidxx' => $deudidxx,
-      ':monto' => $monto,
-      ':categoria' => $categoria,
-      ':descripcion' => $descripcion,
-      ':fecha' => $fecha,
-      ':userId' => $userId,
-      ':id' => $id
-    ]);
-
-    echo json_encode([
-      'success' => true,
-      'message' => 'Transaccion actualizada exitosamente'
-    ]);
-
-  } catch (Exception $e) {
-    error_log('Update transaction error: ' . $e->getMessage());
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al actualizar transaccion']);
-  }
+  api_idempotent_success('tx_add', [
+    'success' => true,
+    'message' => 'Transacción agregada exitosamente',
+    'id' => (int) $pdo->lastInsertId(),
+  ]);
 }
 
-function deleteTransaction($pdo, $userId, $isAdmin)
+/**
+ * Importación masiva con informe por fila. Las filas inválidas se rechazan (con motivo) sin
+ * bloquear las válidas; todo lo aceptado se guarda en una única transacción de BD.
+ * Los posibles duplicados (misma fecha y monto ya existentes) se informan pero se respetan,
+ * porque el usuario los marcó explícitamente en la vista previa.
+ */
+function bulkImport(PDO $pdo, array $auth, array $input): void
 {
-  $id = intval($_GET['id'] ?? 0);
-
-  if ($id <= 0) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'ID invalido']);
-    return;
+  api_idempotent_replay('tx_bulk');
+  $items = $input['items'] ?? null;
+  if (!is_array($items) || count($items) === 0) {
+    api_response(false, 'No hay movimientos para importar', 422);
+  }
+  if (count($items) > BULK_MAX_ITEMS) {
+    api_response(false, 'Máximo ' . BULK_MAX_ITEMS . ' movimientos por importación', 413);
   }
 
-  try {
-    // Verificar que la transaccion pertenece al usuario o es admin con BEATAN
-    $stmt = $pdo->prepare("SELECT FINCTIDX, TIPGASXX, USRIDXXX FROM FINANCIX WHERE FINCTIDX = :id");
-    $stmt->execute([':id' => $id]);
-    $transaction = $stmt->fetch();
-
-    if (!$transaction) {
-      http_response_code(404);
-      echo json_encode(['success' => false, 'error' => 'Transaccion no encontrada']);
-      return;
+  $accepted = [];
+  $rejected = [];
+  foreach (array_values($items) as $i => $item) {
+    if (!is_array($item)) {
+      $rejected[] = ['index' => $i, 'reasons' => ['Formato inválido']];
+      continue;
     }
-
-    // Permitir eliminacion si es el dueno o si es admin y es BEATAN
-    $canDelete = ($transaction['USRIDXXX'] == $userId) || ($isAdmin && $transaction['TIPGASXX'] === 'BEATAN');
-
-    if (!$canDelete) {
-      http_response_code(403);
-      echo json_encode(['success' => false, 'error' => 'No tiene permiso para eliminar esta transaccion']);
-      return;
-    }
-
-    // Soft delete - cambiar estado a INACTIVO
-    $stmt = $pdo->prepare("
-            UPDATE FINANCIX 
-            SET REGESTXX = 'INACTIVO',
-                REGUSRMX = :userId,
-                REGFECMX = CURDATE(),
-                REGHORMX = CURTIME(),
-                REGSTAMP = NOW()
-            WHERE FINCTIDX = :id
-        ");
-
-    $stmt->execute([
-      ':userId' => $userId,
-      ':id' => $id
+    $cents = money_to_cents($item['monto'] ?? null);
+    $tipo = $item['tipo'] ?? ($cents !== null && $cents < 0 ? 'GASTO' : 'INGRESO');
+    [$tx, $errors] = validate_transaction_input([
+      'tipgasxx' => $item['tipgasxx'] ?? 'PERSONAL',
+      'tipo' => $tipo,
+      'monto' => $cents !== null ? cents_to_decimal(abs($cents)) : null,
+      'categoria' => ($item['categoria'] ?? '') !== '' ? $item['categoria'] : 'Varios',
+      'descripcion' => ($item['descripcion'] ?? '') !== '' ? $item['descripcion'] : 'Importado de extracto',
+      'fecha' => $item['fecha'] ?? '',
     ]);
-
-    echo json_encode([
-      'success' => true,
-      'message' => 'Transaccion eliminada exitosamente'
-    ]);
-
-  } catch (Exception $e) {
-    error_log('Delete transaction error: ' . $e->getMessage());
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al eliminar transaccion']);
+    if (!$errors && $tx['tipgasxx'] === 'BEATAN' && !$auth['is_admin'])
+      $errors[] = 'Sin permiso para la cuenta de la empresa';
+    if ($errors)
+      $rejected[] = ['index' => $i, 'reasons' => $errors];
+    else
+      $accepted[] = $tx + ['index' => $i];
   }
+
+  if (count($accepted) === 0) {
+    api_response(false, 'Ninguna fila es válida para importar', 422, ['count' => 0, 'rejected' => $rejected]);
+  }
+
+  $dupStmt = $pdo->prepare("SELECT COUNT(*) FROM FINANCIX WHERE REGESTXX = 'ACTIVO' AND USRIDXXX = :u AND TIPGASXX = :a AND FINCFECX = :f AND MONTGASX = :m");
+  $insert = $pdo->prepare("INSERT INTO FINANCIX (USRIDXXX, DEUDIDXX, TIPGASXX, MONTGASX, CATGASXX, DESGASXX, FINCFECX, REGUSRXX, REGFECXX, REGHORXX, REGESTXX, REGSTAMP)
+    VALUES (:userId, NULL, :tipgasxx, :monto, :categoria, :descripcion, :fecha, :userId2, :d, :h, 'ACTIVO', :stamp)");
+  [$d, $h] = audit_now();
+
+  $possibleDuplicates = 0;
+  $pdo->beginTransaction();
+  foreach ($accepted as $tx) {
+    $dupStmt->execute([':u' => $auth['user_id'], ':a' => $tx['tipgasxx'], ':f' => $tx['fecha'], ':m' => cents_to_decimal($tx['cents'])]);
+    if ((int) $dupStmt->fetchColumn() > 0)
+      $possibleDuplicates++;
+    $insert->execute([
+      ':userId' => $auth['user_id'],
+      ':tipgasxx' => $tx['tipgasxx'],
+      ':monto' => cents_to_decimal($tx['cents']),
+      ':categoria' => $tx['categoria'],
+      ':descripcion' => $tx['descripcion'],
+      ':fecha' => $tx['fecha'],
+      ':userId2' => $auth['user_id'],
+      ':d' => $d,
+      ':h' => $h,
+      ':stamp' => "$d $h",
+    ]);
+  }
+  $pdo->commit();
+
+  $count = count($accepted);
+  api_idempotent_success('tx_bulk', [
+    'success' => true,
+    'message' => "Se importaron $count movimiento(s)" . (count($rejected) ? ' y se rechazaron ' . count($rejected) : ''),
+    'count' => $count,
+    'rejected' => $rejected,
+    'possible_duplicates' => $possibleDuplicates,
+  ]);
 }
-?>
+
+function loadTransactionForWrite(PDO $pdo, array $auth, int $id, string $state = 'ACTIVO'): array
+{
+  $stmt = $pdo->prepare('SELECT FINCTIDX, TIPGASXX, USRIDXXX, REGESTXX FROM FINANCIX WHERE FINCTIDX = :id');
+  $stmt->execute([':id' => $id]);
+  $t = $stmt->fetch();
+  if (!$t || $t['REGESTXX'] !== $state) {
+    api_response(false, 'Transacción no encontrada', 404);
+  }
+  if (!can_modify_record($auth, (string) $t['USRIDXXX'], (string) $t['TIPGASXX'])) {
+    api_response(false, 'No tiene permiso para modificar esta transacción', 403);
+  }
+  return $t;
+}
+
+function updateTransaction(PDO $pdo, array $auth): void
+{
+  $input = api_get_json_input();
+  $id = valid_int_range($input['id'] ?? null, 1, PHP_INT_MAX);
+  if (!$id) {
+    api_response(false, 'ID inválido', 400);
+  }
+  $current = loadTransactionForWrite($pdo, $auth, $id);
+
+  [$tx, $errors] = validate_transaction_input($input + ['tipgasxx' => $current['TIPGASXX']], false);
+  if ($errors) {
+    api_response(false, implode('. ', $errors), 422, ['errors' => $errors]);
+  }
+  if ($tx['deudidxx'] !== null && !debt_belongs_to($pdo, $tx['deudidxx'], $auth, $current['TIPGASXX'])) {
+    api_response(false, 'La deuda asociada no existe o no te pertenece', 422);
+  }
+
+  [$d, $h] = audit_now();
+  $stmt = $pdo->prepare("UPDATE FINANCIX SET DEUDIDXX = :deudidxx, MONTGASX = :monto, CATGASXX = :categoria,
+      DESGASXX = :descripcion, FINCFECX = :fecha, REGUSRMX = :userId, REGFECMX = :d, REGHORMX = :h, REGSTAMP = :stamp
+    WHERE FINCTIDX = :id");
+  $stmt->execute([
+    ':deudidxx' => $tx['deudidxx'],
+    ':monto' => cents_to_decimal($tx['cents']),
+    ':categoria' => $tx['categoria'],
+    ':descripcion' => $tx['descripcion'],
+    ':fecha' => $tx['fecha'],
+    ':userId' => $auth['user_id'],
+    ':d' => $d,
+    ':h' => $h,
+    ':stamp' => "$d $h",
+    ':id' => $id,
+  ]);
+
+  api_json(['success' => true, 'message' => 'Transacción actualizada exitosamente']);
+}
+
+function deleteTransaction(PDO $pdo, array $auth): void
+{
+  $id = valid_int_range($_GET['id'] ?? null, 1, PHP_INT_MAX);
+  if (!$id) {
+    api_response(false, 'ID inválido', 400);
+  }
+  loadTransactionForWrite($pdo, $auth, $id);
+  setTransactionState($pdo, $auth, $id, 'INACTIVO');
+  api_json(['success' => true, 'message' => 'Transacción eliminada', 'id' => $id, 'undo' => true]);
+}
+
+/** Deshacer un borrado lógico reciente. */
+function restoreTransaction(PDO $pdo, array $auth, array $input): void
+{
+  $id = valid_int_range($input['id'] ?? null, 1, PHP_INT_MAX);
+  if (!$id) {
+    api_response(false, 'ID inválido', 400);
+  }
+  loadTransactionForWrite($pdo, $auth, $id, 'INACTIVO');
+  setTransactionState($pdo, $auth, $id, 'ACTIVO');
+  api_json(['success' => true, 'message' => 'Movimiento restaurado', 'id' => $id]);
+}
+
+function setTransactionState(PDO $pdo, array $auth, int $id, string $state): void
+{
+  [$d, $h] = audit_now();
+  $stmt = $pdo->prepare('UPDATE FINANCIX SET REGESTXX = :s, REGUSRMX = :userId, REGFECMX = :d, REGHORMX = :h, REGSTAMP = :stamp WHERE FINCTIDX = :id');
+  $stmt->execute([':s' => $state, ':userId' => $auth['user_id'], ':d' => $d, ':h' => $h, ':stamp' => "$d $h", ':id' => $id]);
+}

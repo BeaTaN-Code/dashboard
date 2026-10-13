@@ -2,9 +2,8 @@
 // dashboard/api/projects.php
 // API para gestionar proyectos de BeaTaN (solo admin)
 
-header('Content-Type: application/json');
-session_start();
-require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/api_helper.php';
+api_bootstrap();
 
 // Verificar autenticacion
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
@@ -54,8 +53,9 @@ function getProjects($pdo) {
     $projects = $stmt->fetchAll();
     echo json_encode(['success' => true, 'data' => $projects]);
   } catch (Exception $e) {
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al obtener proyectos: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al obtener proyectos']);
   }
 }
 
@@ -64,6 +64,9 @@ function createProject($pdo, $adminId) {
   $nombre = trim($input['nombre'] ?? '');
   $descripcion = trim($input['descripcion'] ?? '');
   $estado = trim($input['estado'] ?? 'PLANIFICACION');
+  if (!in_array($estado, ['PLANIFICACION', 'DESARROLLO', 'TERMINADO', 'INACTIVO'], true)) {
+    $estado = 'PLANIFICACION';
+  }
 
   if (empty($nombre)) {
     http_response_code(400);
@@ -84,8 +87,9 @@ function createProject($pdo, $adminId) {
     ]);
     echo json_encode(['success' => true, 'message' => 'Proyecto creado exitosamente', 'id' => $pdo->lastInsertId()]);
   } catch (Exception $e) {
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al crear proyecto: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al crear proyecto']);
   }
 }
 
@@ -96,7 +100,7 @@ function updateProject($pdo, $adminId) {
   $descripcion = trim($input['descripcion'] ?? '');
   $estado = trim($input['estado'] ?? '');
 
-  if ($id <= 0 || empty($nombre)) {
+  if ($id <= 0 || empty($nombre) || !in_array($estado, ['PLANIFICACION', 'DESARROLLO', 'TERMINADO', 'INACTIVO'], true)) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'ID y nombre son requeridos']);
     return;
@@ -122,8 +126,9 @@ function updateProject($pdo, $adminId) {
     ]);
     echo json_encode(['success' => true, 'message' => 'Proyecto actualizado exitosamente']);
   } catch (Exception $e) {
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al actualizar proyecto: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al actualizar proyecto']);
   }
 }
 
@@ -151,7 +156,8 @@ function deleteProject($pdo, $adminId) {
     ]);
     echo json_encode(['success' => true, 'message' => 'Proyecto eliminado exitosamente']);
   } catch (Exception $e) {
+    api_log_error(basename(__FILE__), $e);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error al eliminar proyecto: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error al eliminar proyecto']);
   }
 }

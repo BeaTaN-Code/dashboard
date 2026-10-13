@@ -2,9 +2,8 @@
 // dashboard/api/users.php
 // API para gestionar BEATUSRS (solo admin)
 
-header('Content-Type: application/json');
-session_start();
-require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/api_helper.php';
+api_bootstrap();
 
 // Verificar autenticacion
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
@@ -50,9 +49,9 @@ switch ($method) {
 
 function getUser($pdo)
 {
-  $id = intval($_GET['id'] ?? 0);
+  $id = trim((string) ($_GET['id'] ?? ''));
 
-  if ($id <= 0) {
+  if ($id === '' || $id === '0') {
     try {
       $stmt = $pdo->query("SELECT USRIDXXX, USRNMEXX, USRMAILX, USRCELUL, ISADMINX, REGESTXX FROM BEATUSRS ORDER BY USRNMEXX ASC");
       $users = $stmt->fetchAll();
@@ -100,7 +99,8 @@ function createUser($pdo, $adminId)
   $email = trim($input['email'] ?? '');
   $celular = trim($input['celular'] ?? '');
   $password = $input['password'] ?? '';
-  $isAdmin = intval($input['admin'] ?? 0);
+  // Antes: intval('SI') === 0, por lo que el rol administrador nunca se guardaba.
+  $isAdmin = in_array(strtoupper(trim((string) ($input['admin'] ?? 'NO'))), ['SI', '1', 'TRUE'], true) ? 'SI' : 'NO';
 
   // Validaciones
   if (empty($cedula) || empty($nombre) || empty($email) || empty($password)) {
@@ -115,13 +115,27 @@ function createUser($pdo, $adminId)
     return;
   }
 
-  if (strlen($password) < 6) {
+  if (strlen($password) < 8) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'La contrasena debe tener al menos 6 caracteres']);
+    echo json_encode(['success' => false, 'error' => 'La contraseña debe tener al menos 8 caracteres']);
+    return;
+  }
+
+  if (!preg_match('/^[0-9A-Za-z-]{4,15}$/', $cedula) || mb_strlen($nombre) > 50) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Cédula (4-15 caracteres) o nombre (máx. 50) inválidos']);
     return;
   }
 
   try {
+    $stmt = $pdo->prepare("SELECT USRIDXXX FROM BEATUSRS WHERE USRIDXXX = :cedula");
+    $stmt->execute([':cedula' => $cedula]);
+    if ($stmt->fetch()) {
+      http_response_code(400);
+      echo json_encode(['success' => false, 'error' => 'Ya existe un usuario con esa cédula']);
+      return;
+    }
+
     // Verificar que el email no exista
     $stmt = $pdo->prepare("SELECT USRIDXXX FROM BEATUSRS WHERE USRMAILX = :email");
     $stmt->execute([':email' => $email]);
@@ -169,14 +183,14 @@ function updateUser($pdo, $adminId)
 {
   $input = json_decode(file_get_contents('php://input'), true);
 
-  $id = intval($input['id'] ?? 0);
+  $id = trim((string) ($input['id'] ?? ''));
   $nombre = trim($input['nombre'] ?? '');
   $email = trim($input['email'] ?? '');
   $celular = trim($input['celular'] ?? '');
   $password = $input['password'] ?? '';
-  $isAdmin = trim($input['admin'] ?? '');
+  $isAdmin = strtoupper(trim((string) ($input['admin'] ?? 'NO'))) === 'SI' ? 'SI' : 'NO';
 
-  if ($id <= 0) {
+  if ($id === '') {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'ID invalido']);
     return;
@@ -206,6 +220,13 @@ function updateUser($pdo, $adminId)
       return;
     }
 
+    // Un administrador no puede quitarse su propio rol (evita quedar sin administradores).
+    if ($id === (string) $adminId && $isAdmin !== 'SI') {
+      http_response_code(400);
+      echo json_encode(['success' => false, 'error' => 'No puedes quitarte tu propio rol de administrador']);
+      return;
+    }
+
     // Verificar que el email no pertenezca a otro usuario
     $stmt = $pdo->prepare("SELECT USRIDXXX FROM BEATUSRS WHERE USRMAILX = :email AND USRIDXXX != :id");
     $stmt->execute([':email' => $email, ':id' => $id]);
@@ -218,9 +239,9 @@ function updateUser($pdo, $adminId)
 
     // Actualizar usuario
     if (!empty($password)) {
-      if (strlen($password) < 6) {
+      if (strlen($password) < 8) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'La contrasena debe tener al menos 6 caracteres']);
+        echo json_encode(['success' => false, 'error' => 'La contraseña debe tener al menos 8 caracteres']);
         return;
       }
 
@@ -285,10 +306,10 @@ function updateUser($pdo, $adminId)
 
 function toggleUserStatus($pdo, $adminId)
 {
-  $id = intval($_GET['id'] ?? 0);
+  $id = trim((string) ($_GET['id'] ?? ''));
   $newStatus = $_GET['status'] ?? '';
 
-  if ($id <= 0) {
+  if ($id === '') {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'ID invalido']);
     return;
@@ -301,7 +322,7 @@ function toggleUserStatus($pdo, $adminId)
   }
 
   // No permitir desactivarse a si mismo
-  if ($id == $adminId) {
+  if ($id === (string) $adminId) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'No puede cambiar su propio estado']);
     return;
